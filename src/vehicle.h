@@ -452,8 +452,8 @@ struct vehicle_part {
         /*@}*/
 
     public:
-        /** mount point: x is on the forward/backward axis, y is on the left/right axis */
-        point_rel_ms mount;
+        /** mount point: x fwd/back, y left/right, z is the floor (0 = ground deck) */
+        tripoint_rel_ms mount;
 
         /** mount translated to face.dir [0] and turn_dir [1] */
         // NOLINTNEXTLINE(cata-use-named-point-constants)

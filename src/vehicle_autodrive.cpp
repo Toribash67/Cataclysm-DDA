@@ -671,7 +671,7 @@ vehicle_profile vehicle::autodrive_controller::compute_profile( map &here,
             continue;
         }
         tripoint_rel_ms pos;
-        driven_veh.coord_translate( tdir, pivot, part.mount, pos );
+        driven_veh.coord_translate( tdir, pivot, part.mount.xy(), pos );
         if( extent_map.find( pos.y() ) == extent_map.end() ) {
             extent_map[pos.y()] = {pos.x(), pos.x()};
         } else {
@@ -694,7 +694,7 @@ vehicle_profile vehicle::autodrive_controller::compute_profile( map &here,
         const int radius = ( diameter + 1 ) / 2;
         if( radius > 0 ) {
             tripoint_rel_ms pos;
-            driven_veh.coord_translate( tdir, pivot, part.mount, pos );
+            driven_veh.coord_translate( tdir, pivot, part.mount.xy(), pos );
             for( tripoint_rel_ms pt : points_in_radius( pos, radius ) ) {
                 ret.occupied_zone.emplace_back( pt.xy().raw() );
             }

@@ -14543,14 +14543,14 @@ bool item::process_link( map &here, Character *carrier, const tripoint_bub_ms &p
     int link_vp_index = -1;
     if( link().target == link_state::vehicle_port ) {
         for( int idx : t_veh->cable_ports ) {
-            if( t_veh->part( idx ).mount == link().t_mount ) {
+            if( t_veh->part( idx ).mount.xy() == link().t_mount ) {
                 link_vp_index = idx;
                 break;
             }
         }
     } else if( link().target == link_state::vehicle_battery ) {
         for( int idx : t_veh->batteries ) {
-            if( t_veh->part( idx ).mount == link().t_mount ) {
+            if( t_veh->part( idx ).mount.xy() == link().t_mount ) {
                 link_vp_index = idx;
                 break;
             }
@@ -14558,7 +14558,7 @@ bool item::process_link( map &here, Character *carrier, const tripoint_bub_ms &p
         if( link_vp_index == -1 ) {
             // Check cable_ports, since that includes appliances
             for( int idx : t_veh->cable_ports ) {
-                if( t_veh->part( idx ).mount == link().t_mount ) {
+                if( t_veh->part( idx ).mount.xy() == link().t_mount ) {
                     link_vp_index = idx;
                     break;
                 }
@@ -14699,14 +14699,14 @@ bool item::reset_link( bool unspool_if_too_long, Character *p, int vpart_index,
             // Find the vp_part index the cable is linked to.
             if( link().target == link_state::vehicle_port ) {
                 for( int idx : t_veh->cable_ports ) {
-                    if( t_veh->part( idx ).mount == link().t_mount ) {
+                    if( t_veh->part( idx ).mount.xy() == link().t_mount ) {
                         vpart_index = idx;
                         break;
                     }
                 }
             } else if( link().target == link_state::vehicle_battery ) {
                 for( int idx : t_veh->batteries ) {
-                    if( t_veh->part( idx ).mount == link().t_mount ) {
+                    if( t_veh->part( idx ).mount.xy() == link().t_mount ) {
                         vpart_index = idx;
                         break;
                     }

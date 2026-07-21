@@ -949,7 +949,7 @@ veh_collision vehicle::part_collision( map &here, int part, const tripoint_abs_m
                    !here.has_flag_ter_or_furn( ter_furn_flag::TFLAG_TINY, pos ) ) &&
                  // Protrusions don't collide with short terrain.
                  // Tiny also doesn't, but it's already excluded unless there's a wheel present.
-                 !( part_with_feature( vp.mount, "PROTRUSION", true ) >= 0 &&
+                 !( part_with_feature( vp.mount.xy(), "PROTRUSION", true ) >= 0 &&
                     here.has_flag_ter_or_furn( ter_furn_flag::TFLAG_SHORT, pos ) ) &&
                  // These are bashable, but don't interact with vehicles.
                  !here.has_flag_ter_or_furn( ter_furn_flag::TFLAG_NOCOLLIDE, pos ) &&
@@ -1676,7 +1676,7 @@ void vehicle::precalculate_vehicle_turning( map &here, units::angle new_turn_dir
         const auto &wheel = parts[ part_index ];
         bool rails_ahead = true;
         tripoint_rel_ms wheel_point;
-        coord_translate( mdir.dir(), this->pivot_point( here ), wheel.mount,
+        coord_translate( mdir.dir(), this->pivot_point( here ), wheel.mount.xy(),
                          wheel_point );
 
         tripoint_bub_ms wheel_tripoint = pos_bub( here ) + wheel_point;
@@ -2329,7 +2329,7 @@ void vehicle::update_active_fakes()
         const vehicle_part &part_real = parts.at( part_fake.fake_part_to );
         const tripoint_rel_ms &fake_precalc = part_fake.precalc[0];
         const tripoint_rel_ms &real_precalc = part_real.precalc[0];
-        const vpart_edge_info &real_edge = edges[part_real.mount];
+        const vpart_edge_info &real_edge = edges[part_real.mount.xy()];
         const bool is_protrusion = part_real.info().has_flag( "PROTRUSION" );
 
         if( real_edge.forward != -1 ) {

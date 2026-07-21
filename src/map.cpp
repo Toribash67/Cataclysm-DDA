@@ -855,7 +855,7 @@ vehicle *map::move_vehicle( vehicle &veh, const tripoint_rel_ms &dp, const tiler
             }
             int part_num = veh.get_non_fake_part( coll.part );
 
-            const point_rel_ms &collision_point = veh.part( coll.part ).mount;
+            const point_rel_ms collision_point = veh.part( coll.part ).mount.xy();
             const int coll_dmg = coll.imp;
 
             // Shock damage, if the target part is a rotor treat as an aimed hit.
@@ -1186,10 +1186,10 @@ float map::vehicle_vehicle_collision( vehicle &veh, vehicle &veh2,
             target_parm = target_part;
         }
 
-        epicenter1 += veh.part( coll_parm ).mount;
+        epicenter1 += veh.part( coll_parm ).mount.xy();
         veh.damage( *this, coll_parm, dmg1_part, damage_bash );
 
-        epicenter2 += veh2.part( target_parm ).mount;
+        epicenter2 += veh2.part( target_parm ).mount.xy();
         veh2.damage( *this, target_parm, dmg2_part, damage_bash );
     }
 
@@ -7168,7 +7168,7 @@ bool map::draw_maptile( const catacurses::window &w, const tripoint_bub_ms &p,
     int veh_part = 0;
     const vehicle *veh = veh_at_internal( p, veh_part );
     if( veh != nullptr ) {
-        const vpart_display vd = veh->get_display_of_tile( veh->part( veh_part ).mount );
+        const vpart_display vd = veh->get_display_of_tile( veh->part( veh_part ).mount.xy() );
         sym = vd.symbol_curses;
         tercol = vd.color;
         item_sym.clear(); // clear the item symbol so `sym` is used instead.

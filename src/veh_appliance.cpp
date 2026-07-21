@@ -428,7 +428,7 @@ void veh_app_interact::refill( )
         act = player_activity( ACT_VEHICLE, 1000, static_cast<int>( 'f' ) );
         act.targets.push_back( target );
         act.str_values.push_back( pt->info().id.str() );
-        const point_rel_ms q = veh->coord_translate( pt->mount );
+        const point_rel_ms q = veh->coord_translate( pt->mount.xy() );
         for( const tripoint_abs_ms &p : veh->get_points( true ) ) {
             act.coord_set.insert( p );
         }

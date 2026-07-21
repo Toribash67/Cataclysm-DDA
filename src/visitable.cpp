@@ -128,7 +128,7 @@ static int has_quality_from_vpart( const vehicle &veh, int part, const quality_i
 {
     int qty = 0;
 
-    point_rel_ms pos = veh.part( part ).mount;
+    point_rel_ms pos = veh.part( part ).mount.xy();
     for( const int n : veh.parts_at_relative( pos, true ) ) {
         const vehicle_part &vp = veh.part( n );
         // only unbroken parts can provide tool qualities
@@ -242,7 +242,7 @@ static int max_quality_from_vpart( const vehicle &veh, int part, const quality_i
 {
     int res = INT_MIN;
 
-    point_rel_ms pos = veh.part( part ).mount;
+    point_rel_ms pos = veh.part( part ).mount.xy();
     for( const int &n : veh.parts_at_relative( pos, true ) ) {
         const vehicle_part &vp = veh.part( n );
 
@@ -531,7 +531,7 @@ VisitResponse vehicle_cursor::visit_items(
     const std::function<VisitResponse( item *, item * )> &func ) const
 {
     const vehicle_part &vp = veh.part( part );
-    const int idx = veh.part_with_feature( vp.mount, "CARGO", true );
+    const int idx = veh.part_with_feature( vp.mount.xy(), "CARGO", true );
     if( idx >= 0 ) {
         for( item &e : veh.get_items( veh.part( idx ) ) ) {
             if( visit_internal( func, &e ) == VisitResponse::ABORT ) {
@@ -769,7 +769,7 @@ std::list<item> vehicle_cursor::remove_items_with( const
         return res;
     }
     const vehicle_part &vp = veh.part( part );
-    const int idx = veh.part_with_feature( vp.mount, "CARGO", false );
+    const int idx = veh.part_with_feature( vp.mount.xy(), "CARGO", false );
     if( idx < 0 ) {
         return res;
     }

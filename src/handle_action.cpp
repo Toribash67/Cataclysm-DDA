@@ -526,8 +526,9 @@ static void pldrive( const tripoint_rel_ms &p )
     }
     if( !remote ) {
         const vehicle_part &vp = veh->part( part );
-        const bool has_animal_controls = veh->part_with_feature( vp.mount, "CONTROL_ANIMAL", true ) >= 0;
-        const bool has_controls = veh->part_with_feature( vp.mount, "CONTROLS", true ) >= 0;
+        const bool has_animal_controls = veh->part_with_feature( vp.mount.xy(), "CONTROL_ANIMAL",
+                                         true ) >= 0;
+        const bool has_controls = veh->part_with_feature( vp.mount.xy(), "CONTROLS", true ) >= 0;
         const bool has_animal = veh->has_engine_type( fuel_type_animal, false ) &&
                                 veh->get_harnessed_animal( here );
         if( !has_controls && !has_animal_controls ) {

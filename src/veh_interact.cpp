@@ -175,7 +175,7 @@ player_activity veh_interact::serialize_activity( map &here )
 
     // if we're working on an existing part, use that part as the reference point
     // otherwise (e.g. installing a new frame), just use part 0
-    const point_rel_ms q = veh->coord_translate( pt ? pt->mount : veh->part( 0 ).mount );
+    const point_rel_ms q = veh->coord_translate( pt ? pt->mount.xy() : veh->part( 0 ).mount.xy() );
     const vehicle_part *vpt = pt ? pt : &veh->part( 0 );
     for( const tripoint_abs_ms &p : veh->get_points( true ) ) {
         res.coord_set.insert( p );
@@ -1126,7 +1126,7 @@ void veh_interact::do_repair( map &here )
     if( reason == task_reason::INVALID_TARGET ) {
         vehicle_part *most_repairable = get_most_repairable_part();
         if( most_repairable && most_repairable->is_repairable() ) {
-            move_cursor( here, ( most_repairable->mount.raw() + dd ).rotate( 3 ) );
+            move_cursor( here, ( most_repairable->mount.xy().raw() + dd ).rotate( 3 ) );
             return;
         }
     }
@@ -1663,7 +1663,7 @@ void veh_interact::overview( map &here,
         }
 
         if( overview_pos >= 0 && static_cast<size_t>( overview_pos ) < overview_opts.size() ) {
-            move_cursor( here, ( overview_opts[overview_pos].part->mount.raw() + dd ).rotate( 3 ) );
+            move_cursor( here, ( overview_opts[overview_pos].part->mount.xy().raw() + dd ).rotate( 3 ) );
         }
 
         if( overview_pos >= 0 && static_cast<size_t>( overview_pos ) < overview_opts.size() &&
@@ -2246,7 +2246,7 @@ void veh_interact::move_cursor( map &here, const point_rel_ms &d, int dstart_at 
     need_repair.clear();
     parts_here.clear();
     if( cpart >= 0 ) {
-        parts_here = veh->parts_at_relative( veh->part( cpart ).mount, true );
+        parts_here = veh->parts_at_relative( veh->part( cpart ).mount.xy(), true );
         for( size_t i = 0; i < parts_here.size(); i++ ) {
             vehicle_part &pt = veh->part( parts_here[i] );
 
@@ -2346,8 +2346,8 @@ void veh_interact::display_veh( map &here )
     //Iterate over structural parts so we only hit each square once
     for( const int structural_part_idx : veh->all_parts_at_location( "structure" ) ) {
         const vehicle_part &vp = veh->part( structural_part_idx );
-        const vpart_display vd = veh->get_display_of_tile( vp.mount, false, false );
-        const point_rel_ms q = ( vp.mount + dd ).rotate( 3 );
+        const vpart_display vd = veh->get_display_of_tile( vp.mount.xy(), false, false );
+        const point_rel_ms q = ( vp.mount.xy() + dd ).rotate( 3 );
 
         if( q != point_rel_ms::zero ) { // cursor is not on this part
             mvwputch( w_disp, h_size + q.raw(), vd.color, vd.symbol_curses );
@@ -3341,7 +3341,7 @@ void veh_interact::complete_vehicle( map &here, Character &you )
             }
 
             // Save these values now so they aren't lost when parts or vehicles are destroyed.
-            const point_rel_ms part_mount = vp->mount;
+            const point_rel_ms part_mount = vp->mount.xy();
             const tripoint_bub_ms part_pos = veh.bub_part_pos( here, *vp );
 
             veh.unlink_cables( here, part_mount, you,

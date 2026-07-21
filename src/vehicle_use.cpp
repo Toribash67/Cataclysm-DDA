@@ -447,7 +447,7 @@ void vehicle::smash_security_system( map &here )
         const vehicle_part &vp = part( p );
         if( vp.info().has_flag( "SECURITY" ) && !vp.is_broken() ) {
             idx_security = p;
-            idx_controls = part_with_feature( vp.mount, "CONTROLS", true );
+            idx_controls = part_with_feature( vp.mount.xy(), "CONTROLS", true );
             break;
         }
     }
@@ -1308,7 +1308,7 @@ bool vehicle::can_close( int part_index, Character &who )
 
 void vehicle::open_all_at( map &here, int p )
 {
-    for( const int elem : parts_at_relative( parts[p].mount, true, true ) ) {
+    for( const int elem : parts_at_relative( parts[p].mount.xy(), true, true ) ) {
         const vehicle_part &vp = parts[elem];
         if( vp.info().has_flag( VPFLAG_OPENABLE ) ) {
             // Note that this will open multi-square and non-multipart parts in the tile. This
@@ -1343,7 +1343,7 @@ void vehicle::open_or_close( map &here, const int part_index, const bool opening
     part_open_or_close( part_index, opening );
     insides_dirty = true;
     here.set_transparency_cache_dirty( sm_pos.z() );
-    const tripoint_abs_ms part_location = mount_to_tripoint_abs( parts[part_index].mount );
+    const tripoint_abs_ms part_location = mount_to_tripoint_abs( parts[part_index].mount.xy() );
     here.set_seen_cache_dirty( here.get_bub( part_location ) );
     const int dist = rl_dist( get_player_character().pos_abs(), part_location );
     if( dist < 20 ) {
@@ -2042,7 +2042,7 @@ void vehicle::build_interact_menu( veh_menu &menu, map *here, const tripoint_bub
                 ///\EFFECT_MECHANICS speeds up vehicle hotwiring
                 const float skill = std::max( 1.0f, get_player_character().get_skill_level( skill_mechanics ) );
                 const int moves = to_moves<int>( 6000_seconds / skill );
-                const tripoint_abs_ms target = pos_abs() + coord_translate( parts[0].mount );
+                const tripoint_abs_ms target = pos_abs() + coord_translate( parts[0].mount.xy() );
                 const hotwire_car_activity_actor hotwire_act( moves, target );
                 get_player_character().assign_activity( hotwire_act );
             } );
