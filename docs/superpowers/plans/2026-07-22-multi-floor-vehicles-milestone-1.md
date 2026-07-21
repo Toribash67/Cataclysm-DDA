@@ -15,8 +15,13 @@
 - **Zero behavior change.** `mount.z` MUST be 0 for every part after this milestone. The pass bar for every task is "the full existing suite is still green." Any test that changes result is a bug in the refactor, not a test to update.
 - **Build (debug, for development):** `make NATIVE=osx TILES=1 SOUND=1 LOCALIZE=0 CLANG=1 -j8`. Do NOT pass `FRAMEWORK` at all. Full from-scratch build ≈ 7–8 min; incremental is much faster.
 - **Run one test while iterating:** `tests/cata_test "<name>"` (a single process is fine for one named test).
-- **Run the whole suite (the real gate):** `build-scripts/gha_test_only.sh` (needs GNU `parallel`) — NOT a single `tests/cata_test` call, because some `[monster]` tests cross-contaminate in one process.
-- **C++ formatting before every commit:** astyle 3.1 exactly. Run `astyle --options=.astylerc <changed files>` (see `doc/c++/CODE_STYLE.md`). Project style: spaces inside parens `if( x )`, `foo( a, b )`, `--align-pointer=name`, 4-space indent, 100-col, 1TBS.
+- **Run the whole suite (the real gate):** `build-scripts/gha_test_only.sh` normally, but **GNU `parallel` is NOT installed in this environment**, so run its two isolated batches manually instead (same isolation the script provides — separate processes, per-batch user-dir, lex order):
+  ```sh
+  tests/cata_test --order lex --user-dir=test_user_dir_1 "[slow] ~starting_items"
+  tests/cata_test --order lex --user-dir=test_user_dir_2 "~[slow] ~[.],starting_items"
+  ```
+  Both must exit 0. This is the whole-suite no-op gate; do NOT collapse it into one `cata_test` call (some `[monster]` tests cross-contaminate in a single process). The `[slow]` batch is genuinely slow — allow generous time.
+- **C++ formatting before every commit:** astyle 3.1 exactly (`astyle --options=.astylerc <changed files>`, see `doc/c++/CODE_STYLE.md`). **astyle is NOT installed in this environment** — match the project style by hand and rely on the `astyle.yml` CI job as the authoritative check; do NOT block a task on the local format step. Project style: spaces inside parens `if( x )`, `foo( a, b )`, `--align-pointer=name`, 4-space indent, 100-col, 1TBS.
 - **Three distinct z meanings — never conflate:**
   - `vehicle_part::mount.z` — NEW: the permanent floor (0 = ground). This milestone pins it to 0.
   - `vehicle_part::precalc[i].z()` — EXISTING: transient ramp displacement. **Do not touch in this milestone.**
@@ -300,7 +305,11 @@ Expected: PASS with no change to the expected prototype string (proves no stray 
 
 - [ ] **Step 9: Run the FULL suite (the real no-op gate)**
 
-Run: `build-scripts/gha_test_only.sh`
+Run the whole-suite gate (two isolated batches, since GNU parallel is absent — see Global Constraints):
+```sh
+tests/cata_test --order lex --user-dir=test_user_dir_1 "[slow] ~starting_items"
+tests/cata_test --order lex --user-dir=test_user_dir_2 "~[slow] ~[.],starting_items"
+```
 Expected: entire suite green. Pay special attention to `[vehicle]`, `vehicle_ramp_test`, `vehicle_split_test`, `vehicle_drag_test`, `vehicle_efficiency_test` — any change there means the refactor leaked behavior (most likely a `.xy()` you missed or a stray z write). Fix until green.
 
 - [ ] **Step 10: Format and commit**
@@ -354,7 +363,11 @@ Expected: builds with no errors.
 
 - [ ] **Step 6: Run the full suite**
 
-Run: `build-scripts/gha_test_only.sh`
+Run the whole-suite gate (two isolated batches, since GNU parallel is absent — see Global Constraints):
+```sh
+tests/cata_test --order lex --user-dir=test_user_dir_1 "[slow] ~starting_items"
+tests/cata_test --order lex --user-dir=test_user_dir_2 "~[slow] ~[.],starting_items"
+```
 Expected: entire suite green (no-op). Investigate any `[vehicle]` diff before proceeding.
 
 - [ ] **Step 7: Format and commit**
@@ -401,7 +414,11 @@ Expected: builds clean.
 
 - [ ] **Step 5: Run the full suite**
 
-Run: `build-scripts/gha_test_only.sh`
+Run the whole-suite gate (two isolated batches, since GNU parallel is absent — see Global Constraints):
+```sh
+tests/cata_test --order lex --user-dir=test_user_dir_1 "[slow] ~starting_items"
+tests/cata_test --order lex --user-dir=test_user_dir_2 "~[slow] ~[.],starting_items"
+```
 Expected: entire suite green.
 
 - [ ] **Step 6: Format and commit**
@@ -453,7 +470,11 @@ Expected: builds clean.
 
 - [ ] **Step 3: Run the full suite**
 
-Run: `build-scripts/gha_test_only.sh`
+Run the whole-suite gate (two isolated batches, since GNU parallel is absent — see Global Constraints):
+```sh
+tests/cata_test --order lex --user-dir=test_user_dir_1 "[slow] ~starting_items"
+tests/cata_test --order lex --user-dir=test_user_dir_2 "~[slow] ~[.],starting_items"
+```
 Expected: entire suite green — especially `vehicle_ramp_test` (proves `precalc.z` ramp behavior is untouched).
 
 - [ ] **Step 4: Format and commit**
