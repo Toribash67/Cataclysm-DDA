@@ -98,7 +98,7 @@ TEST_CASE( "vehicle_part_mount_round_trips_through_save", "[vehicle][savegame]" 
 {
     clear_map();
     map &here = get_map();
-    vehicle *veh_ptr = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms::zero,
+    vehicle *veh_ptr = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms( 60, 60, 0 ),
                                          0_degrees, -1, 0 );
     REQUIRE( veh_ptr != nullptr );
     veh_ptr->refresh();
@@ -109,7 +109,7 @@ TEST_CASE( "vehicle_part_mount_round_trips_through_save", "[vehicle][savegame]" 
     }
     REQUIRE_FALSE( before.empty() );
 
-    vehicle after( vproto_id() );
+    vehicle after{ vproto_id() };  // brace-init avoids most-vexing-parse
     serialize_then_deserialize( *veh_ptr, after );
     REQUIRE( after.part_count() == veh_ptr->part_count() );
     for( int i = 0; i < after.part_count(); i++ ) {
@@ -162,7 +162,7 @@ TEST_CASE( "vehicle_part_mount_z_round_trips_through_save", "[vehicle][savegame]
 {
     clear_map();
     map &here = get_map();
-    vehicle *veh_ptr = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms::zero,
+    vehicle *veh_ptr = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms( 60, 60, 0 ),
                                          0_degrees, -1, 0 );
     REQUIRE( veh_ptr != nullptr );
     veh_ptr->refresh();
@@ -172,7 +172,7 @@ TEST_CASE( "vehicle_part_mount_z_round_trips_through_save", "[vehicle][savegame]
     // milestone 2; this exercises the serialization path only).
     veh_ptr->part( 0 ).mount.z() = 1;
 
-    vehicle after( vproto_id() );
+    vehicle after{ vproto_id() };  // brace-init avoids most-vexing-parse
     serialize_then_deserialize( *veh_ptr, after );
     REQUIRE( after.part_count() == veh_ptr->part_count() );
     CHECK( after.part( 0 ).mount.z() == 1 );
@@ -185,7 +185,7 @@ TEST_CASE( "legacy_vehicle_part_without_mount_dz_defaults_to_z0", "[vehicle][sav
 {
     clear_map();
     map &here = get_map();
-    vehicle *veh_ptr = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms::zero,
+    vehicle *veh_ptr = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms( 60, 60, 0 ),
                                          0_degrees, -1, 0 );
     REQUIRE( veh_ptr != nullptr );
     veh_ptr->refresh();
@@ -198,7 +198,7 @@ TEST_CASE( "legacy_vehicle_part_without_mount_dz_defaults_to_z0", "[vehicle][sav
     CHECK( os.str().find( "mount_dz" ) == std::string::npos );
 
     // And loading such (legacy-format) JSON yields z == 0 everywhere.
-    vehicle after( vproto_id() );
+    vehicle after{ vproto_id() };  // brace-init avoids most-vexing-parse
     serialize_then_deserialize( *veh_ptr, after );
     for( int i = 0; i < after.part_count(); i++ ) {
         CHECK( after.part( i ).mount.z() == 0 );
