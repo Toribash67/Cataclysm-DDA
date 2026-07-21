@@ -36,12 +36,18 @@ tests/cata_test --help                # all options
 
 A large part of what the test suite does is **load and validate all game JSON**, so many C++ *and* JSON changes are caught by simply running `cata_test`.
 
+To run the **whole** suite, don't use a single `tests/cata_test` call — some `[monster]` tests are order-dependent and cross-contaminate in one process. Use the repo's runner `build-scripts/gha_test_only.sh` (needs GNU `parallel`), which runs isolated, `--order lex`, `[slow]`/`~[slow]` batches with per-batch `--user-dir`. A single call is fine for one named test or tag while iterating.
+
 ### Formatting (required before PRs)
 
 - **C++:** styled with **astyle 3.1** (exact version — others produce different output). Options are in `.astylerc`; `doc/c++/CODE_STYLE.md` has the full command. Note the project's distinctive style: spaces inside parens (`if( x )`, `foo( a, b )`), `--align-pointer=name`, 4-space indent, 100-col limit, 1TBS braces.
 - **JSON:** run `make style-json`, or format individual files with the `json_formatter` tool (`make style-json` builds it). JSON style rules are in `doc/JSON/JSON_STYLE.md`.
 
 Other lint/dev tooling lives in `tools/` and `build-scripts/` (clang-tidy plugin, IWYU, translation checks, etc.).
+
+### Continuous integration (this fork)
+
+CI is intentionally minimal — this is a solo, personal-use fork, so upstream's contributor/release/translation/analysis workflows were removed. `.github/workflows/` has exactly three: `pr-build.yml` (Linux tiles+sound release build + full test suite via `gha_test_only.sh`, on push/PR to `master`), plus `astyle.yml` and `json.yml`. `pr-build.yml` has no `paths` filter, so even doc-only pushes to `master` trigger a full build. Design rationale: `docs/superpowers/specs/2026-07-21-fork-ci-design.md`.
 
 ## Architecture — the big picture
 
