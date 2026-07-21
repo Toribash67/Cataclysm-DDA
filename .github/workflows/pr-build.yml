@@ -1,0 +1,49 @@
+name: PR build & test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# Only keep the latest run per PR; let master pushes finish.
+concurrency:
+  group: pr-build-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  linux-tiles:
+    name: Linux tiles build & test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential ccache \
+            libsdl2-dev libsdl2-ttf-dev libsdl2-image-dev libsdl2-mixer-dev \
+            libfreetype-dev libflac-dev
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: linux-tiles
+
+      - name: Build (tiles + sound, release)
+        run: |
+          make -j"$(nproc)" \
+            NATIVE=linux64 RELEASE=1 TILES=1 SOUND=1 LOCALIZE=0 CCACHE=1
+
+      - name: Run test suite
+        run: tests/cata_test --min-duration 20 --user-dir=test_user_dir
+
+      - name: Upload test binary on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cata_test
+          path: tests/cata_test
+          if-no-files-found: ignore
