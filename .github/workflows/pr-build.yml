@@ -1,0 +1,53 @@
+name: PR build & test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# Only keep the latest run per PR; let master pushes finish.
+concurrency:
+  group: pr-build-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  linux-tiles:
+    name: Linux tiles build & test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential ccache parallel \
+            libsdl2-dev libsdl2-ttf-dev libsdl2-image-dev libsdl2-mixer-dev \
+            libfreetype-dev libflac-dev
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: linux-tiles
+
+      - name: Build (tiles + sound, release)
+        run: |
+          make -j"$(nproc)" \
+            NATIVE=linux64 RELEASE=1 TILES=1 SOUND=1 LOCALIZE=0 CCACHE=1
+
+      # Use upstream's test runner: it splits tests into isolated, lex-ordered
+      # [slow]/~[slow] batches with per-batch --user-dir. Running the whole suite
+      # in a single declaration-order process causes cross-test map contamination
+      # (e.g. the [monster] spawn tests), which this avoids.
+      - name: Run test suite
+        run: bash ./build-scripts/gha_test_only.sh
+
+      - name: Upload test binary on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cata_test
+          path: tests/cata_test
+          if-no-files-found: ignore
