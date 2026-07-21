@@ -7666,7 +7666,7 @@ std::unique_ptr<vehicle> map::add_vehicle_to_map(
                     }
                     did_merge = true;
                     const point_rel_ms target_point = first_veh_parts.front()->mount.xy();
-                    const point_rel_ms source_point = parts_to_move.front()->mount.xy();
+                    const tripoint_rel_ms source_point = parts_to_move.front()->mount;
                     for( const vehicle_part *vp : parts_to_move ) {
                         const vpart_info &vpi = vp->info();
                         // TODO: change mount points to be tripoint

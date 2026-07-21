@@ -534,7 +534,7 @@ void veh_app_interact::remove( map &here )
 
 bool veh_app_interact::can_disconnect()
 {
-    for( int &i : veh->parts_at_relative( a_point, true ) ) {
+    for( int &i : veh->parts_at_relative( tripoint_rel_ms( a_point, 0 ), true ) ) {
         if( veh->part( i ).has_flag( vp_flag::linked_flag ) ||
             veh->part( i ).info().has_flag( "TOW_CABLE" ) ) {
             return false;

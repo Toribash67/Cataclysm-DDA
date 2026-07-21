@@ -292,7 +292,7 @@ static bool tally_items( std::unordered_map<itype_id, float> &global_item_count,
         }
         if( const optional_vpart_position ovp = tm.veh_at( p ) ) {
             vehicle *const veh = &ovp->vehicle();
-            for( const int elem : veh->parts_at_relative( ovp->mount_pos(), true ) ) {
+            for( const int elem : veh->parts_at_relative( tripoint_rel_ms( ovp->mount_pos(), 0 ), true ) ) {
                 const vehicle_part &vp = veh->part( elem );
                 for( item &i : veh->get_items( vp ) ) {
                     std::unordered_map<itype_id, float>::iterator iter = global_item_count.find( i.typeId() );

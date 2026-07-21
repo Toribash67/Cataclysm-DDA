@@ -1228,7 +1228,7 @@ class vehicle
         /**@}*/
 
         // returns the list of indices of parts at certain position (not accounting frame direction)
-        std::vector<int> parts_at_relative( const point_rel_ms &dp, bool use_cache,
+        std::vector<int> parts_at_relative( const tripoint_rel_ms &dp, bool use_cache,
                                             bool include_fake = false ) const;
 
         /**
@@ -2329,7 +2329,7 @@ class vehicle
          */
         vproto_id type;
         // parts_at_relative(dp) is used a lot (to put it mildly)
-        std::map<point_rel_ms, std::vector<int>> relative_parts; // NOLINT(cata-serialize)
+        std::map<tripoint_rel_ms, std::vector<int>> relative_parts; // NOLINT(cata-serialize)
         std::set<label> labels;            // stores labels
         std::set<std::string> tags;        // Properties of the vehicle
         // After fuel consumption, this tracks the remainder of fuel < 1, and applies it the next time.

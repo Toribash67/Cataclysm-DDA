@@ -3581,7 +3581,7 @@ bool map::terrain_moppable( const tripoint_bub_ms &p )
     // Moppable vehicles ( blood splatter )
     if( const optional_vpart_position ovp = veh_at( p ) ) {
         vehicle *const veh = &ovp->vehicle();
-        for( const int elem : veh->parts_at_relative( ovp->mount_pos(), true ) ) {
+        for( const int elem : veh->parts_at_relative( tripoint_rel_ms( ovp->mount_pos(), 0 ), true ) ) {
             const vehicle_part &vp = veh->part( elem );
             if( vp.blood > 0 ) {
                 return true;
@@ -3626,7 +3626,7 @@ bool map::mop_spills( const tripoint_bub_ms &p )
 
     if( const optional_vpart_position ovp = veh_at( p ) ) {
         vehicle *const veh = &ovp->vehicle();
-        for( const int elem : veh->parts_at_relative( ovp->mount_pos(), true ) ) {
+        for( const int elem : veh->parts_at_relative( tripoint_rel_ms( ovp->mount_pos(), 0 ), true ) ) {
             vehicle_part &vp = veh->part( elem );
             if( vp.blood > 0 ) {
                 vp.blood = 0;

@@ -2246,7 +2246,7 @@ void veh_interact::move_cursor( map &here, const point_rel_ms &d, int dstart_at 
     need_repair.clear();
     parts_here.clear();
     if( cpart >= 0 ) {
-        parts_here = veh->parts_at_relative( veh->part( cpart ).mount.xy(), true );
+        parts_here = veh->parts_at_relative( veh->part( cpart ).mount, true );
         for( size_t i = 0; i < parts_here.size(); i++ ) {
             vehicle_part &pt = veh->part( parts_here[i] );
 
@@ -3358,7 +3358,7 @@ void veh_interact::complete_vehicle( map &here, Character &you )
                 veh.remove_part( *vp );
                 // part_removal_cleanup calls refresh, so parts_at_relative is valid
                 veh.part_removal_cleanup( here );
-                if( veh.parts_at_relative( part_mount, true ).empty() ) {
+                if( veh.parts_at_relative( tripoint_rel_ms( part_mount, 0 ), true ).empty() ) {
                     here.clear_vehicle_point_from_cache( &veh, part_pos );
                 }
             }
