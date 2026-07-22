@@ -1422,7 +1422,7 @@ void vehicle_prototype::save_vehicle_as_prototype( const vehicle &veh,
         const vehicle_part &p = vpr.part();
         mount_max_y = mount_max_y < p.mount.y() ? p.mount.y() : mount_max_y;
         mount_min_y = mount_min_y > p.mount.y() ? p.mount.y() : mount_min_y;
-        vp_map[p.mount].push_back( &p );
+        vp_map[p.mount.xy()].push_back( &p );
     }
     int mount_min_x = vp_map.begin()->first.x();
     int mount_max_x = vp_map.rbegin()->first.x();

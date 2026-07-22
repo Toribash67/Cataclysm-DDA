@@ -263,7 +263,8 @@ static void dead_vegetation_parser( map &m, const tripoint_bub_ms &loc )
 
 static void delete_items_at_mount( vehicle &veh, const point_rel_ms &pt )
 {
-    for( const int idx_cargo : veh.parts_at_relative( pt, /* use_cache = */ true ) ) {
+    for( const int idx_cargo : veh.parts_at_relative( tripoint_rel_ms( pt,
+            0 ), /* use_cache = */ true ) ) {
         vehicle_part &vp_cargo = veh.part( idx_cargo );
         veh.get_items( vp_cargo ).clear();
     }

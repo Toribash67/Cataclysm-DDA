@@ -1059,7 +1059,7 @@ bool game::start_game()
                     u.setpos( pos );
 
                     // Delete the items that would have spawned here from a "corpse"
-                    for( const int sp : v.v->parts_at_relative( vp.mount_pos(), true ) ) {
+                    for( const int sp : v.v->parts_at_relative( tripoint_rel_ms( vp.mount_pos(), 0 ), true ) ) {
                         vpart_reference( *v.v, sp ).items().clear();
                     }
 

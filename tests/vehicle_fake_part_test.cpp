@@ -221,7 +221,7 @@ TEST_CASE( "vehicle_collision_applies_damage_to_fake_parent", "[vehicle] [vehicl
             tripoint_bub_ms obstacle_point = fake_front_right_headlight + tripoint::south_east;
             here.furn_set( obstacle_point.xy(), furn_id( "f_boulder_large" ) );
 
-            int part_count = veh->parts_at_relative( point_rel_ms( 2, 2 ), true, false ).size();
+            int part_count = veh->parts_at_relative( tripoint_rel_ms( 2, 2, 0 ), true, false ).size();
             THEN( "The collision damage is applied to the fake's parent" ) {
                 here.vehmove();
                 std::vector<int> damaged_parts;
@@ -229,14 +229,14 @@ TEST_CASE( "vehicle_collision_applies_damage_to_fake_parent", "[vehicle] [vehicl
                 // hitting the boulder should have slowed the vehicle down
                 REQUIRE( veh->velocity < target_velocity );
 
-                std::vector<int> parent_parts = veh->parts_at_relative( point_rel_ms( 2, 2 ), true, false );
+                std::vector<int> parent_parts = veh->parts_at_relative( tripoint_rel_ms( 2, 2, 0 ), true, false );
                 for( int rel : parent_parts ) {
                     vehicle_part &vp = veh->part( rel );
                     if( vp.info().durability > vp.hp() ) {
                         damaged_parts.push_back( rel );
                     }
                 }
-                for( int rel : veh->parts_at_relative( point_rel_ms( 2, 3 ), true, false ) ) {
+                for( int rel : veh->parts_at_relative( tripoint_rel_ms( 2, 3, 0 ), true, false ) ) {
                     vehicle_part &vp = veh->part( rel );
                     if( vp.info().durability > vp.hp() ) {
                         damaged_fake_parts.push_back( rel );
