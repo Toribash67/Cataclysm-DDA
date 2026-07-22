@@ -701,6 +701,11 @@
     "type": "json_flag"
   },
   {
+    "id": "VERTICAL_CONNECTOR",
+    "type": "json_flag",
+    "info": "Connects this tile to the tile directly above/below it, letting a vehicle have a permanent second deck."
+  },
+  {
     "id": "WHEEL_MOUNT_CONCRETE_MIX",
     "type": "json_flag"
   },

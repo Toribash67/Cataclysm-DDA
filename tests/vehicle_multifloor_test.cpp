@@ -29,3 +29,11 @@ TEST_CASE( "vehicle_install_part_accepts_tripoint_mount", "[vehicle][multifloor]
     const tripoint_rel_ms mount( 0, 0, 0 );
     CHECK( !veh->parts_at_relative( mount, false, false ).empty() );
 }
+
+static const vpart_id vpart_ladder_internal( "ladder_internal" );
+
+TEST_CASE( "vertical_connector_flag_is_recognized", "[vehicle][multifloor]" )
+{
+    // The flag must resolve through the fast-path enum, not just the string set.
+    CHECK( vpart_ladder_internal.obj().has_flag( VPFLAG_VERTICAL_CONNECTOR ) );
+}
