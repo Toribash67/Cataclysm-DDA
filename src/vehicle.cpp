@@ -1433,7 +1433,7 @@ ret_val<void> vehicle::can_unmount( const vehicle_part &vp_to_remove, bool allow
     std::vector<vehicle_part> adjacent_parts;
     for( const point &offset : four_adjacent_offsets ) {
         const std::vector<int> parts_over_there = parts_at_relative(
-                tripoint_rel_ms( vp_to_remove.mount.xy() + offset, 0 ), false );
+                    tripoint_rel_ms( vp_to_remove.mount.xy() + offset, 0 ), false );
         if( !parts_over_there.empty() ) {
             //Just need one part from the square to track the x/y
             adjacent_parts.push_back( parts[parts_over_there[0]] );
@@ -1852,7 +1852,7 @@ std::vector<vehicle::unrackable_vehicle> vehicle::find_vehicles_to_unrack( int r
             }
             for( const point &offset : four_cardinal_directions ) {
                 const std::vector<int> near_parts = parts_at_relative(
-                        tripoint_rel_ms( vp_rack.mount.xy() + offset, 0 ), false );
+                                                        tripoint_rel_ms( vp_rack.mount.xy() + offset, 0 ), false );
                 if( near_parts.empty() ) {
                     continue;
                 }
@@ -1975,7 +1975,7 @@ bool vehicle::merge_rackable_vehicle( map *here, vehicle *carry_veh,
                 mapping carry_map;
                 point_rel_ms old_mount = carry_veh->parts[ carry_part ].mount.xy();
                 carry_map.carry_parts_here = carry_veh->parts_at_relative(
-                        tripoint_rel_ms( old_mount, 0 ), true );
+                                                 tripoint_rel_ms( old_mount, 0 ), true );
                 carry_map.rack_part = rack_part;
                 carry_map.carry_mount = carry_mount;
                 carry_map.old_mount = old_mount;
@@ -2916,7 +2916,8 @@ std::optional<vpart_reference> vpart_position::part_with_tool( map &here,
 std::map<item, int> vpart_position::get_tools( map &here ) const
 {
     std::map<item, int> res;
-    for( const int part_idx : this->vehicle().parts_at_relative( tripoint_rel_ms( this->mount_pos(), 0 ), false ) ) {
+    for( const int part_idx : this->vehicle().parts_at_relative( tripoint_rel_ms( this->mount_pos(),
+            0 ), false ) ) {
         const vehicle_part &vp = this->vehicle().part( part_idx );
         if( vp.is_broken() ) {
             continue;
@@ -3055,7 +3056,8 @@ int vehicle::part_with_feature( int part, vpart_bitflags flag, bool unbroken,
 int vehicle::part_with_feature( const point_rel_ms &pt, vpart_bitflags f, bool unbroken,
                                 bool include_fake ) const
 {
-    for( const int p : parts_at_relative( tripoint_rel_ms( pt, 0 ), /* use_cache = */ true, include_fake ) ) {
+    for( const int p : parts_at_relative( tripoint_rel_ms( pt, 0 ), /* use_cache = */ true,
+                                          include_fake ) ) {
         const vehicle_part &vp_here = this->part( p );
         if( vp_here.info().has_flag( f ) && !( unbroken && vp_here.is_broken() ) ) {
             return p;
@@ -3067,7 +3069,8 @@ int vehicle::part_with_feature( const point_rel_ms &pt, vpart_bitflags f, bool u
 int vehicle::part_with_feature( const point_rel_ms &pt, const std::string &flag, bool unbroken,
                                 bool include_fake ) const
 {
-    for( const int p : parts_at_relative( tripoint_rel_ms( pt, 0 ), /* use_cache = */ false, include_fake ) ) {
+    for( const int p : parts_at_relative( tripoint_rel_ms( pt, 0 ), /* use_cache = */ false,
+                                          include_fake ) ) {
         const vehicle_part &vp_here = this->part( p );
         if( vp_here.info().has_flag( flag ) && !( unbroken && vp_here.is_broken() ) ) {
             return p;
@@ -3547,7 +3550,8 @@ int vehicle::part_displayed_at( const point_rel_ms &dp, bool include_fake, bool 
     // it's clear where the magic number comes from.
     const int ON_ROOF_Z = 9;
 
-    std::vector<int> parts_in_square = parts_at_relative( tripoint_rel_ms( dp, 0 ), true, include_fake );
+    std::vector<int> parts_in_square = parts_at_relative( tripoint_rel_ms( dp, 0 ), true,
+                                       include_fake );
 
     if( parts_in_square.empty() ) {
         return -1;
@@ -6913,9 +6917,9 @@ vpart_edge_info vehicle::get_edge_info( const tripoint_rel_ms &mount ) const
     const tripoint_rel_ms fwd3( mount.x() + point::east.x, mount.y() + point::east.y, mount.z() );
     const tripoint_rel_ms aft3( mount.x() + point::west.x, mount.y() + point::west.y, mount.z() );
     const tripoint_rel_ms lft3( mount.x() + point::north.x, mount.y() + point::north.y,
-                                 mount.z() );
+                                mount.z() );
     const tripoint_rel_ms rgt3( mount.x() + point::south.x, mount.y() + point::south.y,
-                                 mount.z() );
+                                mount.z() );
     int f_index = -1;
     int a_index = -1;
     int l_index = -1;
@@ -7549,7 +7553,8 @@ void vehicle::refresh_insides()
         vp.inside = true; // inside if not otherwise
         for( const point &offset : four_adjacent_offsets ) { // let's check four neighbor parts
             bool cover = false; // if we aren't covered from sides, the roof at p won't save us
-            for( const int near_idx : parts_at_relative( tripoint_rel_ms( vp.mount.xy() + offset, 0 ), true ) ) {
+            for( const int near_idx : parts_at_relative( tripoint_rel_ms( vp.mount.xy() + offset, 0 ),
+                    true ) ) {
                 const vehicle_part &vp_near = part( near_idx );
                 const vpart_info &vpi_near = vp_near.info();
                 if( !vp_near.is_available() ) {
