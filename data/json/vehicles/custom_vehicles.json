@@ -291,5 +291,25 @@
       { "x": -3, "y": 0, "chance": 70, "item_groups": [ "dynamite_shipment" ] },
       { "x": -3, "y": 0, "chance": 70, "item_groups": [ "dynamite_shipment" ] }
     ]
+  },
+  {
+    "id": "test_bus_2floor",
+    "type": "vehicle",
+    "name": "Test Double-Decker Bus",
+    "blueprint": [ "-----" ],
+    "parts": [
+      { "x": 0, "y": 0, "parts": [ "hdframe", "ladder_internal" ] },
+      { "x": 1, "y": 0, "parts": [ "hdframe", "controls", "engine_electric" ] },
+      { "x": 0, "y": 1, "parts": [ "hdframe", "seat" ] },
+      { "x": 1, "y": 1, "parts": [ "hdframe", "storage_battery" ] },
+      { "x": -1, "y": 0, "parts": [ "hdframe", "wheel_mount_medium", "wheel_wide" ] },
+      { "x": -1, "y": 1, "parts": [ "hdframe", "wheel_mount_medium", "wheel_wide" ] },
+      { "x": 2, "y": 0, "parts": [ "hdframe", "wheel_mount_medium", "wheel_wide" ] },
+      { "x": 2, "y": 1, "parts": [ "hdframe", "wheel_mount_medium", "wheel_wide" ] },
+      { "x": 0, "y": 0, "z": 1, "parts": [ "hdframe", "deck_floor" ] },
+      { "x": 0, "y": 1, "z": 1, "parts": [ "hdframe", "deck_floor", "seat" ] },
+      { "x": 1, "y": 0, "z": 1, "parts": [ "hdframe", "deck_floor" ] },
+      { "x": 1, "y": 1, "z": 1, "parts": [ "hdframe", "deck_floor", "seat" ] }
+    ]
   }
 ]

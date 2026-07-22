@@ -78,3 +78,28 @@ TEST_CASE( "upper_deck_mount_allowed_above_connector", "[vehicle][multifloor]" )
     const tripoint_rel_ms above( 2, -2, 1 );
     CHECK( veh->can_mount( above, vpart_id( "hdframe" ).obj() ).success() );
 }
+
+static const vproto_id vehicle_prototype_test_bus_2floor( "test_bus_2floor" );
+
+TEST_CASE( "two_floor_bus_prototype_has_upper_deck_parts", "[vehicle][multifloor]" )
+{
+    const vehicle_prototype &proto = vehicle_prototype_test_bus_2floor.obj();
+    int upper = 0;
+    for( const vehicle_prototype::part_def &pt : proto.parts ) {
+        if( pt.pos.z() == 1 ) {
+            upper++;
+        }
+    }
+    CHECK( upper > 0 );
+}
+
+TEST_CASE( "two_floor_bus_spawns_with_parts_on_both_decks", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    CHECK( !veh->parts_at_relative( tripoint_rel_ms( 0, 0, 0 ), false, false ).empty() );
+    CHECK( !veh->parts_at_relative( tripoint_rel_ms( 0, 0, 1 ), false, false ).empty() );
+}
