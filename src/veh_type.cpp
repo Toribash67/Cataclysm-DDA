@@ -1289,7 +1289,7 @@ void vehicle_prototype::load( const JsonObject &jo, std::string_view )
     vgroups[vgroup_id( id.str() )].add_vehicle( id, 100 );
     optional( jo, was_loaded, "name", name );
 
-    const auto add_part_obj = [&]( const JsonObject & part, point_rel_ms pos ) {
+    const auto add_part_obj = [&]( const JsonObject & part, tripoint_rel_ms pos ) {
         const auto [id, variant] = get_vpart_str_variant( part.get_string( "part" ) );
         part_def pt;
         pt.part = vpart_id( id );
@@ -1305,7 +1305,7 @@ void vehicle_prototype::load( const JsonObject &jo, std::string_view )
         parts.emplace_back( pt );
     };
 
-    const auto add_part_string = [&]( const std::string & part, point_rel_ms pos ) {
+    const auto add_part_string = [&]( const std::string & part, tripoint_rel_ms pos ) {
         const auto [id, variant] = get_vpart_str_variant( part );
         part_def pt;
         pt.part = vpart_id( id );
@@ -1320,7 +1320,9 @@ void vehicle_prototype::load( const JsonObject &jo, std::string_view )
     }
 
     for( JsonObject part : jo.get_array( "parts" ) ) {
-        point_rel_ms pos{ part.get_int( "x" ), part.get_int( "y" ) };
+        // "z" is read unconditionally (never behind has_member): this codebase
+        // reports unvisited JSON members as load errors.
+        tripoint_rel_ms pos{ part.get_int( "x" ), part.get_int( "y" ), part.get_int( "z", 0 ) };
 
         if( part.has_string( "part" ) ) {
             add_part_obj( part, pos );
@@ -1664,7 +1666,7 @@ void vehicles::finalize_prototypes()
             }
 
             if( pt.part.obj().has_flag( VPFLAG_CARGO ) ) {
-                cargo_spots.insert( pt.pos );
+                cargo_spots.insert( pt.pos.xy() );
             }
         }
         blueprint.enable_refresh();

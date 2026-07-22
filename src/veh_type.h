@@ -487,7 +487,7 @@ struct vehicle_item_spawn {
 struct vehicle_prototype {
     public:
         struct part_def {
-            point_rel_ms pos;
+            tripoint_rel_ms pos;
             vpart_id part;
             std::string variant;
             int with_ammo = 0;

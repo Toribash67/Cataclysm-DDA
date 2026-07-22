@@ -823,6 +823,7 @@ class vehicle
         global_variables::impl_t values;
         bool has_structural_part( const point &dp ) const;
         bool has_structural_part( const point_rel_ms &dp ) const;
+        bool has_structural_part( const tripoint_rel_ms &dp ) const;
         bool is_structural_part_removed() const;
         void open_or_close( map &here, int part_index, bool opening );
         void lock_or_unlock( int part_index, bool locking );
@@ -1076,6 +1077,7 @@ class vehicle
          * @return true if the part can be mounted at specified position.
          */
         ret_val<void> can_mount( const point_rel_ms &dp, const vpart_info &vpi ) const;
+        ret_val<void> can_mount( const tripoint_rel_ms &dp, const vpart_info &vpi ) const;
 
         // @returns true if part \p vp_to_remove can be uninstalled
         ret_val<void> can_unmount( const vehicle_part &vp_to_remove, bool allow_splits = false ) const;
@@ -1083,17 +1085,22 @@ class vehicle
         // install a part of type \p type at mount \p dp
         // @return installed part index or -1 if can_mount(...) failed
         int install_part( map &here, const point_rel_ms &dp, const vpart_id &type );
+        int install_part( map &here, const tripoint_rel_ms &dp, const vpart_id &type );
 
         // install a part of type \p type at mount \p dp with \p base (std::move -ing it)
         // @return installed part index or -1 if can_mount(...) failed
         int install_part( map &here, const point_rel_ms &dp, const vpart_id &type, item &&base );
+        int install_part( map &here, const tripoint_rel_ms &dp, const vpart_id &type, item &&base );
 
         int install_part( map &here, const point_rel_ms &dp, const vpart_id &type, item &&base,
+                          std::vector<item> &installed_with );
+        int install_part( map &here, const tripoint_rel_ms &dp, const vpart_id &type, item &&base,
                           std::vector<item> &installed_with );
 
         // install the given part \p vp (std::move -ing it)
         // @return installed part index or -1 if can_mount(...) failed
         int install_part( map &here, const point_rel_ms &dp, vehicle_part &&vp );
+        int install_part( map &here, const tripoint_rel_ms &dp, vehicle_part &&vp );
 
         struct rackable_vehicle {
             std::string name;
