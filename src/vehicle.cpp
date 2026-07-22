@@ -3652,15 +3652,15 @@ void vehicle::precalc_mounts( int idir, const units::angle &dir,
         idir = 0;
     }
     tileray tdir( dir );
-    std::unordered_map<point_rel_ms, tripoint_rel_ms> mount_to_precalc;
+    std::unordered_map<tripoint_rel_ms, tripoint_rel_ms> mount_to_precalc;
     for( vehicle_part &p : parts ) {
         if( p.removed ) {
             continue;
         }
-        auto q = mount_to_precalc.find( p.mount.xy() );
+        auto q = mount_to_precalc.find( p.mount );
         if( q == mount_to_precalc.end() ) {
             coord_translate( tdir, pivot, p.mount.xy(), p.precalc[idir] );
-            mount_to_precalc.insert( { p.mount.xy(), p.precalc[idir]} );
+            mount_to_precalc.insert( { p.mount, p.precalc[idir]} );
         } else {
             p.precalc[idir] = q->second;
         }
