@@ -1258,7 +1258,10 @@ bool vehicle::has_structural_part( const tripoint_rel_ms &dp ) const
 bool vehicle::has_vertical_connector_at( const tripoint_rel_ms &dp ) const
 {
     for( const int elem : parts_at_relative( dp, false ) ) {
-        if( part( elem ).info().has_flag( VPFLAG_VERTICAL_CONNECTOR ) ) {
+        const vehicle_part &vp = part( elem );
+        const vpart_info &vpi = vp.info();
+        if( vpi.has_flag( VPFLAG_VERTICAL_CONNECTOR ) &&
+            !vp.has_flag( vp_flag::carried_flag ) ) {
             return true;
         }
     }

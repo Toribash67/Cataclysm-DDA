@@ -48,7 +48,9 @@ TEST_CASE( "upper_deck_mount_requires_vertical_connector", "[vehicle][multifloor
 
     const vpart_info &floor = vpart_id( "hdframe" ).obj();
 
-    // A tile far above open ground with no connector beneath must be rejected.
+    // (0, 0, 0) holds the car's real structural frame, but a bare z-neighbour
+    // is NOT connectivity: with no vertical connector below it, z=1 directly
+    // above that structure must still be rejected.
     const tripoint_rel_ms unsupported( 0, 0, 1 );
     CHECK( !veh->can_mount( unsupported, floor ).success() );
 }
