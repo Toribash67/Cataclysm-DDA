@@ -292,17 +292,21 @@ git commit -m "refactor: widen vehicle prototype authoring path to 3D mounts (z 
 
 ---
 
-### Task 2: Add the `VERTICAL_CONNECTOR` vehicle part flag
+### Task 2: Add the `VERTICAL_CONNECTOR` flag and the parts that carry it
 
 A JSON-only `json_flag` will not work — `has_flag( VPFLAG_… )` fast-path checks require a real enum entry plus a string mapping.
+
+The flag and the parts ship together deliberately: a flag with no part carrying it cannot be tested, and `deck_floor` is what makes an upper deck stand-on-able. `VPFLAG_ROOF` alone is **not** a walkable floor (it means "keeps rain out", `src/vehicle.cpp:2280-2282`), so `deck_floor` combines ROOF + BOARDABLE — roof from below, floor from above.
 
 **Files:**
 - Modify: `src/veh_type.h:118-120` (enum, before `NUM_VPFLAGS`)
 - Modify: `src/veh_type.cpp:153` (flag string table)
+- Create: `data/json/vehicleparts/multifloor.json`
 - Test: `tests/vehicle_multifloor_test.cpp`
 
 **Interfaces:**
 - Produces: `VPFLAG_VERTICAL_CONNECTOR` enum value; JSON flag string `"VERTICAL_CONNECTOR"`; recognized by `vpart_info::has_flag( VPFLAG_VERTICAL_CONNECTOR )`.
+- Produces: vpart ids `ladder_internal` (carries the flag) and `deck_floor` (ROOF + BOARDABLE).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -318,7 +322,7 @@ TEST_CASE( "vertical_connector_flag_is_recognized", "[vehicle][multifloor]" )
 }
 ```
 
-This test also depends on the JSON part from Task 4; it will fail until both land. That is intentional — it is the seam between the two tasks.
+`ladder_internal` is created later in this same task, so this test goes green before the task ends.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -352,13 +356,92 @@ In `src/veh_type.cpp`, after the `IGNORE_HEIGHT_REQUIREMENT` row at line 153:
 - [ ] **Step 5: Verify it compiles**
 
 Run: `.nas-build/cdda.sh build`
-Expected: builds clean. The new test still fails at runtime (`ladder_internal` does not exist yet) — that is expected until Task 4.
+Expected: builds clean. The test still fails at runtime (`ladder_internal` does not exist yet) — the next step fixes that.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Inspect an existing part to copy the shape**
 
 ```bash
-git add src/veh_type.h src/veh_type.cpp tests/vehicle_multifloor_test.cpp
-git commit -m "feat: add VPFLAG_VERTICAL_CONNECTOR vehicle part flag"
+grep -n '"id": "hdframe"' -A 25 data/json/vehicleparts/vehicle_parts.json
+```
+
+Match the surrounding conventions exactly (`type`, `id`, `name`, `item`, `location`, `requirements`, `breaks_into`).
+
+- [ ] **Step 7: Add the two parts**
+
+Create `data/json/vehicleparts/multifloor.json`:
+
+```json
+[
+  {
+    "type": "vehicle_part",
+    "id": "ladder_internal",
+    "name": { "str": "internal ladder" },
+    "categories": [ "structure" ],
+    "item": "ladder",
+    "location": "center",
+    "symbol": "H",
+    "color": "light_gray",
+    "broken_symbol": "x",
+    "broken_color": "light_gray",
+    "durability": 200,
+    "description": "A fixed ladder connecting this deck to the one above it.",
+    "size": "150 L",
+    "flags": [ "VERTICAL_CONNECTOR", "BOARDABLE", "OBSTACLE" ],
+    "breaks_into": [ { "item": "steel_chunk", "count": [ 1, 2 ] } ],
+    "requirements": {
+      "install": { "skills": [ [ "mechanics", 3 ] ], "time": "60 m", "using": [ [ "vehicle_bolt", 1 ] ] },
+      "removal": { "skills": [ [ "mechanics", 2 ] ], "time": "30 m", "using": [ [ "vehicle_bolt", 1 ] ] }
+    }
+  },
+  {
+    "type": "vehicle_part",
+    "id": "deck_floor",
+    "name": { "str": "deck floor" },
+    "categories": [ "structure" ],
+    "item": "sheet_metal",
+    "location": "structure",
+    "symbol": "%",
+    "color": "light_gray",
+    "broken_symbol": "*",
+    "broken_color": "light_gray",
+    "durability": 300,
+    "description": "A solid metal floor panel forming the deck above.",
+    "flags": [ "ROOF", "BOARDABLE", "OPAQUE" ],
+    "breaks_into": [ { "item": "steel_chunk", "count": [ 2, 4 ] } ],
+    "requirements": {
+      "install": { "skills": [ [ "mechanics", 3 ] ], "time": "60 m", "using": [ [ "vehicle_weld_removal", 1 ] ] },
+      "removal": { "skills": [ [ "mechanics", 2 ] ], "time": "30 m", "using": [ [ "vehicle_weld_removal", 1 ] ] }
+    }
+  }
+]
+```
+
+Verify every referenced item id and requirement id exists:
+
+```bash
+grep -rn '"id": "ladder"' data/json/items/ | head -2
+grep -rn '"id": "sheet_metal"' data/json/items/ | head -2
+grep -rn '"id": "vehicle_bolt"' data/json/requirements/ | head -2
+grep -rn '"id": "vehicle_weld_removal"' data/json/requirements/ | head -2
+```
+
+Replace any that do not resolve with ids that do — an unresolved id is a load error.
+
+- [ ] **Step 8: Format the JSON**
+
+Run: `.nas-build/cdda.sh run make style-json`
+Expected: file reformatted in place, exit 0.
+
+- [ ] **Step 9: Build and verify the flag test now passes**
+
+Run: `.nas-build/cdda.sh build && .nas-build/cdda.sh test "[multifloor]"`
+Expected: all `[multifloor]` cases PASS, including `vertical_connector_flag_is_recognized`.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add src/veh_type.h src/veh_type.cpp data/json/vehicleparts/multifloor.json tests/vehicle_multifloor_test.cpp
+git commit -m "feat: add VERTICAL_CONNECTOR flag with internal ladder and deck floor parts"
 ```
 
 ---
@@ -478,7 +561,7 @@ TEST_CASE( "upper_deck_mount_allowed_above_connector", "[vehicle][multifloor]" )
 - [ ] **Step 6: Run both tests**
 
 Run: `.nas-build/cdda.sh build && .nas-build/cdda.sh test "[multifloor]"`
-Expected: PASS (the positive case requires Task 4's JSON; run it again after Task 4 if `ladder_internal` is missing).
+Expected: PASS — `ladder_internal` and `deck_floor` already exist from Task 2.
 
 - [ ] **Step 7: Full vehicle regression**
 
@@ -494,111 +577,7 @@ git commit -m "feat: ladder-gated can_mount validation for upper-deck parts"
 
 ---
 
-### Task 4: New JSON parts — internal ladder and upper-deck floor
-
-`VPFLAG_ROOF` alone is **not** a walkable floor (it means "keeps rain out", `src/vehicle.cpp:2280-2282`). The upper-deck part must combine ROOF + BOARDABLE so it is a roof from below and a stand-on floor from above.
-
-**Files:**
-- Modify: `data/json/vehicleparts/vehicle_parts.json` (or a new `data/json/vehicleparts/multifloor.json`)
-- Test: `tests/vehicle_multifloor_test.cpp`
-
-**Interfaces:**
-- Produces: vpart ids `ladder_internal` and `deck_floor`, plus their item ids.
-
-- [ ] **Step 1: Inspect an existing part to copy the shape**
-
-```bash
-grep -n '"id": "hdframe"' -A 25 data/json/vehicleparts/vehicle_parts.json
-```
-
-Match the surrounding conventions exactly (`type`, `id`, `name`, `item`, `location`, `requirements`, `breaks_into`).
-
-- [ ] **Step 2: Add the two parts**
-
-Create `data/json/vehicleparts/multifloor.json`:
-
-```json
-[
-  {
-    "type": "vehicle_part",
-    "id": "ladder_internal",
-    "name": { "str": "internal ladder" },
-    "categories": [ "structure" ],
-    "item": "ladder",
-    "location": "center",
-    "symbol": "H",
-    "color": "light_gray",
-    "broken_symbol": "x",
-    "broken_color": "light_gray",
-    "durability": 200,
-    "description": "A fixed ladder connecting this deck to the one above it.",
-    "size": "150 L",
-    "flags": [ "VERTICAL_CONNECTOR", "BOARDABLE", "OBSTACLE" ],
-    "breaks_into": [ { "item": "steel_chunk", "count": [ 1, 2 ] } ],
-    "requirements": {
-      "install": { "skills": [ [ "mechanics", 3 ] ], "time": "60 m", "using": [ [ "vehicle_bolt", 1 ] ] },
-      "removal": { "skills": [ [ "mechanics", 2 ] ], "time": "30 m", "using": [ [ "vehicle_bolt", 1 ] ] }
-    }
-  },
-  {
-    "type": "vehicle_part",
-    "id": "deck_floor",
-    "name": { "str": "deck floor" },
-    "categories": [ "structure" ],
-    "item": "sheet_metal",
-    "location": "structure",
-    "symbol": "%",
-    "color": "light_gray",
-    "broken_symbol": "*",
-    "broken_color": "light_gray",
-    "durability": 300,
-    "description": "A solid metal floor panel forming the deck above.",
-    "flags": [ "ROOF", "BOARDABLE", "OPAQUE" ],
-    "breaks_into": [ { "item": "steel_chunk", "count": [ 2, 4 ] } ],
-    "requirements": {
-      "install": { "skills": [ [ "mechanics", 3 ] ], "time": "60 m", "using": [ [ "vehicle_weld_removal", 1 ] ] },
-      "removal": { "skills": [ [ "mechanics", 2 ] ], "time": "30 m", "using": [ [ "vehicle_weld_removal", 1 ] ] }
-    }
-  }
-]
-```
-
-Verify every referenced item id and requirement id exists:
-
-```bash
-grep -rn '"id": "ladder"' data/json/items/ | head -2
-grep -rn '"id": "sheet_metal"' data/json/items/ | head -2
-grep -rn '"id": "vehicle_bolt"' data/json/requirements/ | head -2
-grep -rn '"id": "vehicle_weld_removal"' data/json/requirements/ | head -2
-```
-
-Replace any that do not resolve with ids that do — an unresolved id is a load error.
-
-- [ ] **Step 3: Format the JSON**
-
-Run: `.nas-build/cdda.sh run make style-json`
-Expected: file reformatted in place, exit 0.
-
-- [ ] **Step 4: Build and verify the parts load**
-
-Run: `.nas-build/cdda.sh build && .nas-build/cdda.sh test "vertical_connector_flag_is_recognized"`
-Expected: PASS — this is the Task 2 test finally going green.
-
-- [ ] **Step 5: Re-run the Task 3 positive case**
-
-Run: `.nas-build/cdda.sh test "[multifloor]"`
-Expected: all `[multifloor]` cases PASS, including `upper_deck_mount_allowed_above_connector`.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add data/json/vehicleparts/multifloor.json
-git commit -m "feat: add internal ladder and deck floor vehicle parts"
-```
-
----
-
-### Task 5: Two-floor test bus prototype
+### Task 4: Two-floor test bus prototype
 
 Validation is free: `finalize_prototypes` installs every part through `can_mount`, and any failure `debugmsg`s, which fails the suite.
 
@@ -699,7 +678,7 @@ git commit -m "feat: add two-floor test bus prototype"
 
 ---
 
-### Task 6: Full-suite gate and documentation
+### Task 5: Full-suite gate and documentation
 
 **Files:**
 - Modify: `doc/JSON/VEHICLES_JSON.md`
