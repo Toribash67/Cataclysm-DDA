@@ -2329,7 +2329,7 @@ void vehicle::update_active_fakes()
         const vehicle_part &part_real = parts.at( part_fake.fake_part_to );
         const tripoint_rel_ms &fake_precalc = part_fake.precalc[0];
         const tripoint_rel_ms &real_precalc = part_real.precalc[0];
-        const vpart_edge_info &real_edge = edges[part_real.mount.xy()];
+        const vpart_edge_info &real_edge = edges[part_real.mount];
         const bool is_protrusion = part_real.info().has_flag( "PROTRUSION" );
 
         if( real_edge.forward != -1 ) {

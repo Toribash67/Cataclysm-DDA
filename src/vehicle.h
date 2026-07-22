@@ -2244,9 +2244,9 @@ class vehicle
         // Used in savegame.cpp to only save real parts to json
         std::vector<std::reference_wrapper<const vehicle_part>> real_parts() const;
         // Map of edge parts and their adjacency information
-        std::map<point_rel_ms, vpart_edge_info> edges; // NOLINT(cata-serialize)
+        std::map<tripoint_rel_ms, vpart_edge_info> edges; // NOLINT(cata-serialize)
         // For a given mount point, returns its adjacency info
-        vpart_edge_info get_edge_info( const point_rel_ms &mount ) const;
+        vpart_edge_info get_edge_info( const tripoint_rel_ms &mount ) const;
 
         // Removes fake parts from the parts vector
         void remove_fake_parts( map &here, bool cleanup = true );
@@ -2360,8 +2360,8 @@ class vehicle
         /*
          * The co-ordinates of the bounding box of the vehicle's mount points
          */
-        mutable point_rel_ms mount_max; // NOLINT(cata-serialize)
-        mutable point_rel_ms mount_min; // NOLINT(cata-serialize)
+        mutable tripoint_rel_ms mount_max; // NOLINT(cata-serialize)
+        mutable tripoint_rel_ms mount_min; // NOLINT(cata-serialize)
         mutable point_rel_ms mass_center_precalc; // NOLINT(cata-serialize)
         mutable point_rel_ms mass_center_no_precalc; // NOLINT(cata-serialize)
         tripoint_abs_ms autodrive_local_target =

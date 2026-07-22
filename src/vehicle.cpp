@@ -6652,10 +6652,8 @@ void vehicle::refresh( const bool remove_fakes )
         }
     } svpv = { this };
 
-    mount_min.x() = 123;
-    mount_min.y() = 123;
-    mount_max.x() = -123;
-    mount_max.y() = -123;
+    mount_min = tripoint_rel_ms( 123, 123, 0 );
+    mount_max = tripoint_rel_ms( -123, -123, 0 );
 
     int railwheel_xmin = INT_MAX;
     int railwheel_ymin = INT_MAX;
@@ -6678,10 +6676,10 @@ void vehicle::refresh( const bool remove_fakes )
 
         // Build map of point -> all parts in that point
         const tripoint_rel_ms pt = vp.part().mount;
-        mount_min.x() = std::min( mount_min.x(), pt.x() );
-        mount_min.y() = std::min( mount_min.y(), pt.y() );
-        mount_max.x() = std::max( mount_max.x(), pt.x() );
-        mount_max.y() = std::max( mount_max.y(), pt.y() );
+        mount_min = tripoint_rel_ms( std::min( mount_min.x(), pt.x() ),
+                                     std::min( mount_min.y(), pt.y() ), 0 );
+        mount_max = tripoint_rel_ms( std::max( mount_max.x(), pt.x() ),
+                                     std::max( mount_max.y(), pt.y() ), 0 );
 
         // This will keep the parts at point pt sorted
         std::vector<int>::iterator vii = std::lower_bound( relative_parts[pt].begin(),
@@ -6807,10 +6805,10 @@ void vehicle::refresh( const bool remove_fakes )
     rail_wheel_bounding_box.p2 = point_rel_ms( railwheel_xmax, railwheel_ymax );
     front_left.x() = mount_max.x();
     front_left.y() = mount_min.y();
-    front_right = mount_max;
+    front_right = mount_max.xy();
 
     if( !refresh_done ) {
-        mount_min = mount_max = point_rel_ms::zero;
+        mount_min = mount_max = tripoint_rel_ms::zero;
         rail_wheel_bounding_box.p1 = point_rel_ms::zero;
         rail_wheel_bounding_box.p2 = point_rel_ms::zero;
     }
@@ -6829,7 +6827,8 @@ void vehicle::refresh( const bool remove_fakes )
             return;
         }
         // find neighbor info for current mount
-        vpart_edge_info edge_info = get_edge_info( real_mount );
+        const tripoint_rel_ms real_mount3( real_mount.x(), real_mount.y(), 0 );
+        vpart_edge_info edge_info = get_edge_info( real_mount3 );
         // add fake mounts based on the edge info
         if( edge_info.is_edge_mount() ) {
             // get a copy of the real part and install it as an inactive fake part
@@ -6857,7 +6856,7 @@ void vehicle::refresh( const bool remove_fakes )
             part_real.fake_part_at = fake_index;
             fake_parts.push_back( fake_index );
             relative_parts[ part_fake.mount ].push_back( fake_index );
-            edges.emplace( real_mount, edge_info );
+            edges.emplace( real_mount3, edge_info );
             parts.push_back( std::move( part_fake ) );
         }
     };
@@ -6909,16 +6908,14 @@ void vehicle::refresh( const bool remove_fakes )
     refresh_active_item_cache();
 }
 
-vpart_edge_info vehicle::get_edge_info( const point_rel_ms &mount ) const
+vpart_edge_info vehicle::get_edge_info( const tripoint_rel_ms &mount ) const
 {
-    point_rel_ms forward = mount + point::east;
-    point_rel_ms aft = mount + point::west;
-    point_rel_ms left = mount + point::north;
-    point_rel_ms right = mount + point::south;
-    const tripoint_rel_ms fwd3( forward, 0 );
-    const tripoint_rel_ms aft3( aft, 0 );
-    const tripoint_rel_ms lft3( left, 0 );
-    const tripoint_rel_ms rgt3( right, 0 );
+    const tripoint_rel_ms fwd3( mount.x() + point::east.x, mount.y() + point::east.y, mount.z() );
+    const tripoint_rel_ms aft3( mount.x() + point::west.x, mount.y() + point::west.y, mount.z() );
+    const tripoint_rel_ms lft3( mount.x() + point::north.x, mount.y() + point::north.y,
+                                 mount.z() );
+    const tripoint_rel_ms rgt3( mount.x() + point::south.x, mount.y() + point::south.y,
+                                 mount.z() );
     int f_index = -1;
     int a_index = -1;
     int l_index = -1;
