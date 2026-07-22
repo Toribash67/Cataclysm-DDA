@@ -1255,6 +1255,16 @@ bool vehicle::has_structural_part( const tripoint_rel_ms &dp ) const
     return false;
 }
 
+bool vehicle::has_vertical_connector_at( const tripoint_rel_ms &dp ) const
+{
+    for( const int elem : parts_at_relative( dp, false ) ) {
+        if( part( elem ).info().has_flag( VPFLAG_VERTICAL_CONNECTOR ) ) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /**
  * Returns whether or not the vehicle has a structural part queued for removal,
  * @return true if a structural is queue for removal, false if not.
@@ -1335,20 +1345,27 @@ ret_val<void> vehicle::can_mount( const tripoint_rel_ms &dp, const vpart_info &v
         }
     }
 
-    // All parts after the first must be installed on or next to an existing part
-    // the exception is when a single tile only structural object is being repaired
+    // All parts after the first must be installed on or next to an existing part.
+    // The exception is when a single tile only structural object is being repaired.
     if( !parts.empty() ) {
         const tripoint_rel_ms east( dp + tripoint_rel_ms::east );
         const tripoint_rel_ms south( dp + tripoint_rel_ms::south );
         const tripoint_rel_ms west( dp + tripoint_rel_ms::west );
         const tripoint_rel_ms north( dp + tripoint_rel_ms::north );
-        if( !is_structural_part_removed() &&
-            !has_structural_part( dp ) &&
-            !has_structural_part( east ) &&
-            !has_structural_part( south ) &&
-            !has_structural_part( west ) &&
-            !has_structural_part( north ) ) {
-            return ret_val<void>::make_failure( _( "Part needs to be adjacent to or on existing structure." ) );
+        const bool supported_in_plane =
+            has_structural_part( dp ) ||
+            has_structural_part( east ) ||
+            has_structural_part( south ) ||
+            has_structural_part( west ) ||
+            has_structural_part( north );
+        // Decks connect only through an explicit vertical connector: a bare
+        // z-neighbour is NOT connectivity (multi-floor design section 1).
+        const bool supported_from_below =
+            dp.z() > 0 &&
+            has_vertical_connector_at( dp + tripoint_rel_ms::below );
+        if( !is_structural_part_removed() && !supported_in_plane && !supported_from_below ) {
+            return ret_val<void>::make_failure(
+                       _( "Part needs to be adjacent to or on existing structure." ) );
         }
     }
 

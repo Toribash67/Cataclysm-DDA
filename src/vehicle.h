@@ -824,6 +824,7 @@ class vehicle
         bool has_structural_part( const point &dp ) const;
         bool has_structural_part( const point_rel_ms &dp ) const;
         bool has_structural_part( const tripoint_rel_ms &dp ) const;
+        bool has_vertical_connector_at( const tripoint_rel_ms &dp ) const;
         bool is_structural_part_removed() const;
         void open_or_close( map &here, int part_index, bool opening );
         void lock_or_unlock( int part_index, bool locking );
