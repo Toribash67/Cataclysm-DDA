@@ -1748,6 +1748,7 @@ Note: Vehicle parts requiring other parts is defined by setting a `requires_flag
 - ```UNMOUNT_ON_MOVE``` Dismount this part when the vehicle moves.  Doesn't drop the part, unless you give it special handling.
 - ```UNSTABLE_WHEEL``` This will not provide for the wheeling needs of your vehicle if installed alone.  Opposite of `STABLE`.
 - ```VARIABLE_SIZE``` Has 'bigness' for power, wheel radius, etc.
+- ```VERTICAL_CONNECTOR``` Connects this tile to the tile directly above it, allowing a vehicle to have a permanent upper deck.  Without it, parts at different z-levels are not considered connected.
 - ```VISION``` Gives vision of otherwise unseen directions (e.g. mirrors).
 - ```WALL_MOUNTED``` This vehicle part is mounted on wall, and can't be moved by itself.
 - ```WASHING_MACHINE``` Can be used to wash filthy clothes en masse.

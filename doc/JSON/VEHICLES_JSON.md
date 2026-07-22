@@ -52,6 +52,8 @@ The line defines parts at location X,Y. Strings, like "PARTID1" and "PARTID3", s
 
 Several different lines can have the same X, Y co-ordinates and each one adds additional parts to that location.
 
+An optional `"z"` field may also be specified: `{ "x": X, "y": Y, "z": Z, "parts": [ ... ] }`. `Z` is an integer, defaults to `0` when omitted, and selects the deck the part is mounted on: `0` is the ground deck, `1` is the upper deck. A part at `z > 0` must sit directly above a part with the `VERTICAL_CONNECTOR` flag, or be adjacent to another part already placed on the same `z`.
+
 ### Extra options
 
 #### Turrets
