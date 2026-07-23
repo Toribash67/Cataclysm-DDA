@@ -1268,6 +1268,26 @@ bool vehicle::has_vertical_connector_at( const tripoint_rel_ms &dp ) const
     return false;
 }
 
+std::vector<tripoint_rel_ms> vehicle::connected_neighbours( const tripoint_rel_ms &mount ) const
+{
+    std::vector<tripoint_rel_ms> neighbours;
+    neighbours.reserve( 6 );
+    for( const point &offset : four_adjacent_offsets ) {
+        neighbours.emplace_back( mount + tripoint_rel_ms( offset.x, offset.y, 0 ) );
+    }
+    // Vertical edges are gated on a VERTICAL_CONNECTOR on the LOWER of the two tiles
+    // (same rule as can_mount): up from `mount` needs a connector on `mount`; down
+    // from `mount` needs a connector on the tile below.
+    if( has_vertical_connector_at( mount ) ) {
+        neighbours.emplace_back( mount + tripoint_rel_ms::above );
+    }
+    const tripoint_rel_ms below = mount + tripoint_rel_ms::below;
+    if( has_vertical_connector_at( below ) ) {
+        neighbours.push_back( below );
+    }
+    return neighbours;
+}
+
 /**
  * Returns whether or not the vehicle has a structural part queued for removal,
  * @return true if a structural is queue for removal, false if not.
@@ -1463,21 +1483,10 @@ ret_val<void> vehicle::can_unmount( const vehicle_part &vp_to_remove, bool allow
         return ret_val<void>::make_success(); // wrecks can have more than one structure part, so it's valid for removal
     }
 
-    // find all the vehicle's tiles adjacent to the one we're removing
+    // find all the vehicle's tiles adjacent to the one we're removing (a co-located
+    // connector is never a structure part, so the up-edge is a no-op here in practice)
     std::vector<vehicle_part> adjacent_parts;
-    std::vector<tripoint_rel_ms> neighbour_mounts;
-    for( const point &offset : four_adjacent_offsets ) {
-        neighbour_mounts.emplace_back(
-            vp_to_remove.mount + tripoint_rel_ms( offset.x, offset.y, 0 ) );
-    }
-    if( has_vertical_connector_at( vp_to_remove.mount ) ) {
-        neighbour_mounts.emplace_back( vp_to_remove.mount + tripoint_rel_ms::above );
-    }
-    const tripoint_rel_ms below_removed( vp_to_remove.mount + tripoint_rel_ms::below );
-    if( has_vertical_connector_at( below_removed ) ) {
-        neighbour_mounts.push_back( below_removed );
-    }
-    for( const tripoint_rel_ms &np : neighbour_mounts ) {
+    for( const tripoint_rel_ms &np : connected_neighbours( vp_to_remove.mount ) ) {
         const std::vector<int> parts_over_there = parts_at_relative( np, false );
         if( !parts_over_there.empty() ) {
             //Just need one part from the square to track the x/y
@@ -1539,22 +1548,7 @@ bool vehicle::is_connected( const vehicle_part &to, const vehicle_part &from,
         const tripoint_rel_ms current_pt = queue.front();
         queue.pop();
 
-        // Planar edges (same z) plus connector-gated vertical edges. A vertical
-        // edge current<->above exists only if a VERTICAL_CONNECTOR sits on the
-        // lower of the two tiles (same rule as can_mount).
-        std::vector<tripoint_rel_ms> neighbours;
-        for( const point &offset : four_adjacent_offsets ) {
-            neighbours.emplace_back( current_pt + tripoint_rel_ms( offset.x, offset.y, 0 ) );
-        }
-        if( has_vertical_connector_at( current_pt ) ) {
-            neighbours.emplace_back( current_pt + tripoint_rel_ms::above );
-        }
-        const tripoint_rel_ms below = current_pt + tripoint_rel_ms::below;
-        if( has_vertical_connector_at( below ) ) {
-            neighbours.push_back( below );
-        }
-
-        for( const tripoint_rel_ms &next : neighbours ) {
+        for( const tripoint_rel_ms &next : connected_neighbours( current_pt ) ) {
             if( next == target ) {
                 return true; // found a path, bail out early from BFS
             }
@@ -2356,9 +2350,12 @@ bool vehicle::remove_part( vehicle_part &vp, RemovePartHandler &handler )
 
     // if a windshield is removed (usually destroyed) also remove curtains
     // attached to it.
-    // vp is a specific, known part, so dirty the caches at its own level
-    // (precalc.z() == mount.z(), see Task 2) rather than the whole vehicle's
-    // z-range.
+    // vp is a specific, known part, so dirty the caches at its own composed level
+    // (precalc.z() == mount.z() + ramp offset) rather than the whole vehicle's
+    // z-range. At rest precalc.z() == mount.z() (0 for single-floor, i.e. the pre-M3
+    // sm_pos.z()); mid-ramp it is intentionally the part's actual rendered level, not
+    // the old z=0 -- a correctness improvement. Any out-of-range z is ignored by the
+    // inbounds_z guard inside set_transparency_cache_dirty/set_floor_cache_dirty.
     if( remove_dependent_part( "WINDOW", "CURTAIN" ) || vpi.has_flag( VPFLAG_OPAQUE ) ) {
         handler.set_transparency_cache_dirty( sm_pos.z() + vp.precalc[0].z() );
     }
@@ -2658,22 +2655,7 @@ bool vehicle::find_and_split_vehicles( map &here, std::set<int> exclude )
                 veh_parts.push_back( p );
             }
             checked_parts.insert( test_part );
-            // Planar edges (same z) plus connector-gated vertical edges, matching
-            // the is_connected/can_unmount neighbour rule: a vertical edge exists
-            // only when a VERTICAL_CONNECTOR sits on the lower of the two tiles.
-            std::vector<tripoint_rel_ms> neighbour_mounts;
-            const tripoint_rel_ms cur = parts[test_part].mount;
-            for( const point &offset : four_adjacent_offsets ) {
-                neighbour_mounts.emplace_back( cur + tripoint_rel_ms( offset.x, offset.y, 0 ) );
-            }
-            if( has_vertical_connector_at( cur ) ) {
-                neighbour_mounts.emplace_back( cur + tripoint_rel_ms::above );
-            }
-            const tripoint_rel_ms cur_below( cur + tripoint_rel_ms::below );
-            if( has_vertical_connector_at( cur_below ) ) {
-                neighbour_mounts.push_back( cur_below );
-            }
-            for( const tripoint_rel_ms &dp : neighbour_mounts ) {
+            for( const tripoint_rel_ms &dp : connected_neighbours( parts[test_part].mount ) ) {
                 std::vector<int> all_neighbor_parts = parts_at_relative( dp, true );
                 int neighbor_struct_part = -1;
                 for( const int p : all_neighbor_parts ) {

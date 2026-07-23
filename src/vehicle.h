@@ -829,6 +829,12 @@ class vehicle
         bool has_structural_part( const point_rel_ms &dp ) const;
         bool has_structural_part( const tripoint_rel_ms &dp ) const;
         bool has_vertical_connector_at( const tripoint_rel_ms &dp ) const;
+        // Connector-gated adjacency of a mount: its four planar neighbours (same z),
+        // plus the tile above (iff a VERTICAL_CONNECTOR sits on this tile) and the
+        // tile below (iff a VERTICAL_CONNECTOR sits on that lower tile). A bare
+        // z-neighbour never connects. Single source of the deck-connectivity rule
+        // shared by is_connected / can_unmount / find_and_split_vehicles.
+        std::vector<tripoint_rel_ms> connected_neighbours( const tripoint_rel_ms &mount ) const;
         bool is_structural_part_removed() const;
         void open_or_close( map &here, int part_index, bool opening );
         void lock_or_unlock( int part_index, bool locking );
