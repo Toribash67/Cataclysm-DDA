@@ -38,6 +38,8 @@ TEST_CASE( "vertical_connector_flag_is_recognized", "[vehicle][multifloor]" )
     CHECK( vpart_ladder_internal.obj().has_flag( VPFLAG_VERTICAL_CONNECTOR ) );
 }
 
+static const vpart_id vpart_frame( "frame" );
+
 TEST_CASE( "upper_deck_mount_requires_vertical_connector", "[vehicle][multifloor]" )
 {
     map &here = get_map();
@@ -48,14 +50,26 @@ TEST_CASE( "upper_deck_mount_requires_vertical_connector", "[vehicle][multifloor
 
     const vpart_info &floor = vpart_id( "hdframe" ).obj();
 
-    // (0, 0, 0) holds the car's real structural frame, but a bare z-neighbour
-    // is NOT connectivity: with no vertical connector below it, z=1 directly
-    // above that structure must still be rejected.
+    // Cheap check: (0, 0, 1) is simply empty, so plain planar adjacency alone
+    // already rejects it. This alone would still pass with the connector gate
+    // deleted, so it does not prove anything about the gate on its own.
     const tripoint_rel_ms unsupported( 0, 0, 1 );
     CHECK( !veh->can_mount( unsupported, floor ).success() );
-}
 
-static const vpart_id vpart_frame( "frame" );
+    // The discriminating case: mirror upper_deck_mount_allowed_above_connector's
+    // setup exactly, but install a plain structural frame (NOT a vertical
+    // connector) on the new ground tile. (-1, -2) is a distinct tile from that
+    // test's (2, -2), planar-adjacent to the car's real structure at (-1, -1),
+    // so the frame installs there. Real structure directly below is present,
+    // but with no connector, z=1 above it must still be rejected -- proving
+    // it is specifically the connector, not "any part below," that legalizes
+    // an upper-deck mount.
+    const tripoint_rel_ms ground( -1, -2, 0 );
+    REQUIRE( veh->install_part( here, ground, vpart_frame ) >= 0 );
+
+    const tripoint_rel_ms above( -1, -2, 1 );
+    CHECK( !veh->can_mount( above, floor ).success() );
+}
 
 TEST_CASE( "upper_deck_mount_allowed_above_connector", "[vehicle][multifloor]" )
 {
