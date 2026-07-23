@@ -117,3 +117,40 @@ TEST_CASE( "two_floor_bus_spawns_with_parts_on_both_decks", "[vehicle][multifloo
     CHECK( !veh->parts_at_relative( tripoint_rel_ms( 0, 0, 0 ), false, false ).empty() );
     CHECK( !veh->parts_at_relative( tripoint_rel_ms( 0, 0, 1 ), false, false ).empty() );
 }
+
+// M3 §6.3 composition matrix (mount side): after precalc_mounts, every part's
+// precalc.z must equal its mount.z, across all 4 cardinal rotations and both
+// decks (with no ramp displacement, precalc_z_delta == 0). This is the NEW logic
+// M3 introduces; the ramp side (mount.z=0 x ramp) is covered by vehicle_ramp_test,
+// and the cross term (mount.z=1 x ramp) lands with the driving test in M5.
+TEST_CASE( "precalc_z_composes_from_mount_z_across_rotations", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    // Prove the bus actually has an upper deck, else the test is vacuous.
+    bool saw_upper = false;
+    for( const vpart_reference &vpr : veh->get_all_parts() ) {
+        if( !vpr.part().removed && vpr.part().mount.z() == 1 ) {
+            saw_upper = true;
+            break;
+        }
+    }
+    REQUIRE( saw_upper );
+
+    for( const units::angle rot : {
+                0_degrees, 90_degrees, 180_degrees, 270_degrees
+            } ) {
+        veh->precalc_mounts( 0, rot, point_rel_ms::zero );
+        for( const vpart_reference &vpr : veh->get_all_parts() ) {
+            const vehicle_part &vp = vpr.part();
+            if( vp.removed ) {
+                continue;
+            }
+            INFO( "rotation " << to_degrees( rot ) << " mount z " << vp.mount.z() );
+            CHECK( vp.precalc[0].z() == vp.mount.z() );
+        }
+    }
+}

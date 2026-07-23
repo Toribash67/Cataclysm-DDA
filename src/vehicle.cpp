@@ -3719,7 +3719,11 @@ void vehicle::precalc_mounts( int idir, const units::angle &dir,
         auto q = mount_to_precalc.find( p.mount );
         if( q == mount_to_precalc.end() ) {
             coord_translate( tdir, pivot, p.mount.xy(), p.precalc[idir] );
-            mount_to_precalc.insert( { p.mount, p.precalc[idir]} );
+            // coord_translate writes only x/y. Compose the z from the permanent
+            // deck (mount.z) and the transient ramp displacement (precalc_z_delta,
+            // owned by advance_precalc_mounts). The memo key is the full 3D mount.
+            p.precalc[idir].z() = p.mount.z() + p.precalc_z_delta;
+            mount_to_precalc.insert( { p.mount, p.precalc[idir] } );
         } else {
             p.precalc[idir] = q->second;
         }
@@ -8778,6 +8782,10 @@ std::set<int> vehicle::advance_precalc_mounts( const point_sm_ms &new_pos,
         }
         prt.precalc[0].z() -= ramp_offset;
         prt.precalc[1].z() = prt.precalc[0].z();
+        // Record the ramp displacement above the mount deck so precalc_mounts can
+        // rebuild precalc.z = mount.z + precalc_z_delta on later ticks/rotations
+        // without clobbering an in-progress ramp climb.
+        prt.precalc_z_delta = prt.precalc[0].z() - prt.mount.z();
         smzs.insert( prt.precalc[0].z() );
     }
     if( adjust_pos ) {

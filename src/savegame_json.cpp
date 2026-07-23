@@ -3293,8 +3293,9 @@ void vehicle_part::deserialize( const JsonObject &data )
         if( std::abs( z_offset ) > 10 ) {
             data.throw_error_at( "z_offset", "z_offset out of range" );
         }
-        precalc[0].z() = z_offset;
-        precalc[1].z() = z_offset;
+        precalc_z_delta = z_offset;
+        precalc[0].z() = mount.z() + z_offset;
+        precalc[1].z() = mount.z() + z_offset;
     }
 
     JsonArray ja_carried = data.get_array( "carried_stack" );
@@ -3358,8 +3359,8 @@ void vehicle_part::serialize( JsonOut &json ) const
     }
     json.member( "passenger_id", passenger_id );
     json.member( "crew_id", crew_id );
-    if( precalc[0].z() ) {
-        json.member( "z_offset", precalc[0].z() );
+    if( precalc[0].z() - mount.z() != 0 ) {
+        json.member( "z_offset", precalc[0].z() - mount.z() );
     }
     json.member( "items", items );
     json.member( "tools", tools );

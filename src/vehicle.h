@@ -459,6 +459,10 @@ struct vehicle_part {
         // NOLINTNEXTLINE(cata-use-named-point-constants)
         std::array<tripoint_rel_ms, 2> precalc = { { tripoint_rel_ms( -1, -1, 0 ), tripoint_rel_ms( -1, -1, 0 ) } };
 
+        /** transient ramp displacement above the mount deck: precalc.z == mount.z + precalc_z_delta.
+         *  0 unless the vehicle is mid-ramp. Persisted via the "z_offset" savegame field. */
+        int precalc_z_delta = 0; // NOLINT(cata-serialize)
+
         /** temporarily held projected position */
         tripoint_abs_ms next_pos = tripoint_abs_ms( -1, -1, 0 ); // NOLINT(cata-serialize)
 
