@@ -42,13 +42,6 @@ jobs:
       # in a single declaration-order process causes cross-test map contamination
       # (e.g. the [monster] spawn tests), which this avoids.
       - name: Run test suite
-        # C.UTF-8 keeps utf8_to_wstr (catacharset.cpp) from aborting under the
-        # default C locale on multibyte glyphs (e.g. the ammo-selection UI in
-        # speedloader_reloading). Mirrors the NAS build harness's locale fix; the
-        # ubuntu runner ships the C.UTF-8 glibc built-in, so no locale-gen needed.
-        env:
-          LANG: C.UTF-8
-          LC_ALL: C.UTF-8
         run: bash ./build-scripts/gha_test_only.sh
 
       - name: Upload test binary on failure
