@@ -154,3 +154,39 @@ TEST_CASE( "precalc_z_composes_from_mount_z_across_rotations", "[vehicle][multif
         }
     }
 }
+
+TEST_CASE( "refresh_bounding_box_tracks_upper_deck_z", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    veh->refresh();
+    CHECK( veh->mount_min_z() == 0 );
+    CHECK( veh->mount_max_z() == 1 );
+}
+
+TEST_CASE( "single_floor_vehicle_bounding_box_z_is_zero", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_car,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    veh->refresh();
+    // No-op guarantee: every shipped vehicle stays a single ground deck.
+    CHECK( veh->mount_min_z() == 0 );
+    CHECK( veh->mount_max_z() == 0 );
+}
+
+TEST_CASE( "two_floor_bus_upper_deck_can_carry_cargo", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    const int cargo = veh->part_with_feature( tripoint_rel_ms( 1, 0, 1 ), "CARGO", false );
+    CHECK( cargo >= 0 );
+}

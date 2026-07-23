@@ -2375,6 +2375,8 @@ bool vehicle::remove_part( vehicle_part &vp, RemovePartHandler &handler )
     }
 
     //Remove loot zone if Cargo was removed.
+    // loot_zones is keyed by planar point_rel_ms (save-format field); widening
+    // it to distinguish decks is deferred to a later milestone.
     const auto lz_iter = loot_zones.find( vp.mount.xy() );
     const bool no_zone = lz_iter != loot_zones.end();
 
@@ -2392,6 +2394,7 @@ bool vehicle::remove_part( vehicle_part &vp, RemovePartHandler &handler )
     const int vp_idx = index_of_part( &vp, /* include_removed = */ true );
     handler.removed( &handler.get_map_ref(), *this, vp_idx );
 
+    // labels is likewise keyed by planar point_rel_ms; same deferral as loot_zones above.
     const point_rel_ms vp_mount = vp.mount.xy();
     const auto iter = labels.find( label( vp_mount ) );
     if( iter != labels.end() && parts_at_relative( tripoint_rel_ms( vp_mount, 0 ), false ).empty() ) {
@@ -3126,6 +3129,18 @@ int vehicle::part_with_feature( const point_rel_ms &pt, const std::string &flag,
 {
     for( const int p : parts_at_relative( tripoint_rel_ms( pt, 0 ), /* use_cache = */ false,
                                           include_fake ) ) {
+        const vehicle_part &vp_here = this->part( p );
+        if( vp_here.info().has_flag( flag ) && !( unbroken && vp_here.is_broken() ) ) {
+            return p;
+        }
+    }
+    return -1;
+}
+
+int vehicle::part_with_feature( const tripoint_rel_ms &pt, const std::string &flag, bool unbroken,
+                                bool include_fake ) const
+{
+    for( const int p : parts_at_relative( pt, /* use_cache = */ false, include_fake ) ) {
         const vehicle_part &vp_here = this->part( p );
         if( vp_here.info().has_flag( flag ) && !( unbroken && vp_here.is_broken() ) ) {
             return p;
@@ -6324,6 +6339,8 @@ void vehicle::make_active( item_location &loc )
     }
     // System insures that there is only one part in this vector.
     vehicle_part *cargo_part = cargo_parts.front();
+    // active_items is a planar (x,y) cache; the part above was already
+    // selected 3D via loc.pos_abs(), so this flattening is safe.
     active_items.add( target, cargo_part->mount.xy() );
 }
 
@@ -6384,6 +6401,8 @@ std::optional<vehicle_stack::iterator> vehicle::add_item( map &here, vehicle_par
     }
 
     const vehicle_stack::iterator new_pos = vp.items.insert( itm_copy );
+    // active_items is a planar (x,y) cache; upper-deck items still index by
+    // their x/y column here. The part is selected 3D above via mount.
     active_items.add( *new_pos, vp.mount.xy() );
 
     invalidate_mass();
@@ -6452,7 +6471,9 @@ void vehicle::place_spawn_items( map &here )
 
     for( const vehicle_prototype::part_def &pt : type->parts ) {
         if( pt.with_ammo ) {
-            int turret = part_with_feature( pt.pos.xy(), "TURRET", true );
+            // pt.pos is 3D (M2): select the turret at its own z so an
+            // upper-deck turret is not confused with one on the deck below.
+            int turret = part_with_feature( pt.pos, "TURRET", true );
             if( turret >= 0 && x_in_y( pt.with_ammo, 100 ) ) {
                 parts[ turret ].ammo_set( random_entry( pt.ammo_types ), rng( pt.ammo_qty.first,
                                           pt.ammo_qty.second ) );
@@ -6715,8 +6736,8 @@ void vehicle::refresh( const bool remove_fakes )
         }
     } svpv = { this };
 
-    mount_min = tripoint_rel_ms( 123, 123, 0 );
-    mount_max = tripoint_rel_ms( -123, -123, 0 );
+    mount_min = tripoint_rel_ms( 123, 123, 123 );
+    mount_max = tripoint_rel_ms( -123, -123, -123 );
 
     int railwheel_xmin = INT_MAX;
     int railwheel_ymin = INT_MAX;
@@ -6740,9 +6761,11 @@ void vehicle::refresh( const bool remove_fakes )
         // Build map of point -> all parts in that point
         const tripoint_rel_ms pt = vp.part().mount;
         mount_min = tripoint_rel_ms( std::min( mount_min.x(), pt.x() ),
-                                     std::min( mount_min.y(), pt.y() ), 0 );
+                                     std::min( mount_min.y(), pt.y() ),
+                                     std::min( mount_min.z(), pt.z() ) );
         mount_max = tripoint_rel_ms( std::max( mount_max.x(), pt.x() ),
-                                     std::max( mount_max.y(), pt.y() ), 0 );
+                                     std::max( mount_max.y(), pt.y() ),
+                                     std::max( mount_max.z(), pt.z() ) );
 
         // This will keep the parts at point pt sorted
         std::vector<int>::iterator vii = std::lower_bound( relative_parts[pt].begin(),
@@ -6890,6 +6913,8 @@ void vehicle::refresh( const bool remove_fakes )
             return;
         }
         // find neighbor info for current mount
+        // Fake-part edge/obstacle handling (this whole lambda family) is planar
+        // by design; upper-deck support is deferred to a later milestone.
         const tripoint_rel_ms real_mount3( real_mount.x(), real_mount.y(), 0 );
         vpart_edge_info edge_info = get_edge_info( real_mount3 );
         // add fake mounts based on the edge info
@@ -7123,6 +7148,7 @@ void vehicle::refresh_pivot( map &here ) const
             // broken wheels don't roll on either axis
             weight_i = contact_area * 2.0;
             weight_p = contact_area * 2.0;
+            // wheels are ground-deck only (mount.z==0), so .xy() here is safe.
         } else if( part_with_feature( wheel.mount.xy(), "STEERABLE", true ) != -1 ) {
             // Unbroken steerable wheels can handle motion on both axes
             // (but roll a little more easily inline)
@@ -7299,6 +7325,8 @@ bool vehicle::has_tow_attached() const
 
 void vehicle::set_tow_directions()
 {
+    // Towing is a ground-deck, driving-only path; upper-deck tow cables are
+    // deferred to a later milestone.
     const int length = mount_max.x() - mount_min.x() + 1;
     const point_rel_ms mount_of_tow = parts[get_tow_part()].mount.xy();
     const point_rel_ms normalized_tow_mount = point_rel_ms( std::abs( mount_of_tow.x() -
@@ -7342,6 +7370,8 @@ void vehicle::invalidate_towing( map &here, bool first_vehicle, Character *remov
         vehicle *other_veh = first_veh_is_towing ? tow_data.get_towed() :
                              is_towed() ? tow_data.get_towed_by() : nullptr;
         const int other_tow_cable_idx = other_veh ? other_veh->get_tow_part() : -1;
+        // planar cache; upper-deck support deferred to later milestone (towing
+        // is a ground-deck, driving-only path).
         const point_rel_ms other_tow_cable_mount = other_veh && other_tow_cable_idx > -1 ?
                 other_veh->part( other_tow_cable_idx ).mount.xy() : point_rel_ms::zero;
         if( other_veh ) {
@@ -7604,7 +7634,8 @@ void vehicle::refresh_insides()
         }
         /* If there's no roof, or there is a roof but it's broken, it's outside.
          * (Use short-circuiting || so broken frames don't screw this up) */
-        if( ( part_with_feature( vp.mount.xy(), "ROOF", true ) < 0 ) || !vp.is_available() ) {
+        // With two decks the roof that matters is at the part's own z, not z==0.
+        if( ( part_with_feature( vp.mount, "ROOF", true ) < 0 ) || !vp.is_available() ) {
             vp.inside = false;
             continue;
         }
@@ -7612,6 +7643,8 @@ void vehicle::refresh_insides()
         vp.inside = true; // inside if not otherwise
         for( const point &offset : four_adjacent_offsets ) { // let's check four neighbor parts
             bool cover = false; // if we aren't covered from sides, the roof at p won't save us
+            // NOTE: neighbor scan still pins z=0 (out of scope for M3 task 2;
+            // full multi-deck "inside" coverage is deferred to a later milestone).
             for( const int near_idx : parts_at_relative( tripoint_rel_ms( vp.mount.xy() + offset, 0 ),
                     true ) ) {
                 const vehicle_part &vp_near = part( near_idx );

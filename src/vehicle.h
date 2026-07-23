@@ -1255,6 +1255,14 @@ class vehicle
         int part_with_feature( const point_rel_ms &pt, const std::string &f, bool unbroken,
                                bool include_fake = false ) const;
         /**
+        *  3D-mount overload of the above: delegates to the same lookup, but at
+        *  \p pt's own z so an upper-deck part is not confused with a ground-deck
+        *  one sharing the same (x, y).
+        *  @note does not use relative_parts cache
+        */
+        int part_with_feature( const tripoint_rel_ms &pt, const std::string &f, bool unbroken,
+                               bool include_fake = false ) const;
+        /**
         *  Returns part index at mount point \p pt which has given \p f flag
         *  @note uses relative_parts cache
         *  @param pt only returns parts from this mount point
@@ -2383,6 +2391,15 @@ class vehicle
         std::shared_ptr<autodrive_controller> active_autodrive_controller; // NOLINT(cata-serialize)
 
     public:
+        // Const accessors for the z range of mount_min/mount_max (see above; the
+        // fields themselves stay private/mutable, only the z extent is exposed).
+        int mount_min_z() const {
+            return mount_min.z();
+        }
+        int mount_max_z() const {
+            return mount_max.z();
+        }
+
         /**
          * Submap coordinates of the currently loaded submap that contains this vehicle.
          * When the vehicle is really moved (by map::displace_vehicle), set_submap_moved
