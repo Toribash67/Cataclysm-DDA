@@ -1558,7 +1558,7 @@ void vehicles::finalize_prototypes()
     vehicle_prototype_factory.finalize();
     for( const vehicle_prototype &const_proto : vehicles::get_all_prototypes() ) {
         vehicle_prototype &proto = const_cast<vehicle_prototype &>( const_proto );
-        std::unordered_set<point_rel_ms> cargo_spots;
+        std::unordered_set<tripoint_rel_ms> cargo_spots;
 
         // Calling the constructor with empty vproto_id as parameter
         // makes constructor bypass copying the (non-existing) blueprint.
@@ -1667,13 +1667,19 @@ void vehicles::finalize_prototypes()
             }
 
             if( pt.part.obj().has_flag( VPFLAG_CARGO ) ) {
-                cargo_spots.insert( pt.pos.xy() );
+                // pt.pos is 3D (M2): keep the z so an upper-deck cargo tile no
+                // longer collides with a ground-deck one at the same (x, y).
+                cargo_spots.insert( pt.pos );
             }
         }
         blueprint.enable_refresh();
 
         for( vehicle_item_spawn &i : proto.item_spawns ) {
-            if( cargo_spots.count( i.pos ) == 0 ) {
+            // vehicle_item_spawn::pos has no z field (the "items" JSON array
+            // has no "z" key), so a spawn location can only ever address a
+            // ground-deck (z == 0) CARGO part; upper-deck item spawns are
+            // unsupported until that schema gains a z coordinate.
+            if( cargo_spots.count( tripoint_rel_ms( i.pos, 0 ) ) == 0 ) {
                 debugmsg( "Invalid spawn location (no CARGO vpart) in %s (%d, %d): %d%%",
                           proto.name, i.pos.x(), i.pos.y(), i.chance );
             }

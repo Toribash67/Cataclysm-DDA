@@ -459,6 +459,10 @@ struct vehicle_part {
         // NOLINTNEXTLINE(cata-use-named-point-constants)
         std::array<tripoint_rel_ms, 2> precalc = { { tripoint_rel_ms( -1, -1, 0 ), tripoint_rel_ms( -1, -1, 0 ) } };
 
+        /** transient ramp displacement above the mount deck: precalc.z == mount.z + precalc_z_delta.
+         *  0 unless the vehicle is mid-ramp. Persisted via the "z_offset" savegame field. */
+        int precalc_z_delta = 0; // NOLINT(cata-serialize)
+
         /** temporarily held projected position */
         tripoint_abs_ms next_pos = tripoint_abs_ms( -1, -1, 0 ); // NOLINT(cata-serialize)
 
@@ -825,6 +829,12 @@ class vehicle
         bool has_structural_part( const point_rel_ms &dp ) const;
         bool has_structural_part( const tripoint_rel_ms &dp ) const;
         bool has_vertical_connector_at( const tripoint_rel_ms &dp ) const;
+        // Connector-gated adjacency of a mount: its four planar neighbours (same z),
+        // plus the tile above (iff a VERTICAL_CONNECTOR sits on this tile) and the
+        // tile below (iff a VERTICAL_CONNECTOR sits on that lower tile). A bare
+        // z-neighbour never connects. Single source of the deck-connectivity rule
+        // shared by is_connected / can_unmount / find_and_split_vehicles.
+        std::vector<tripoint_rel_ms> connected_neighbours( const tripoint_rel_ms &mount ) const;
         bool is_structural_part_removed() const;
         void open_or_close( map &here, int part_index, bool opening );
         void lock_or_unlock( int part_index, bool locking );
@@ -1173,7 +1183,7 @@ class vehicle
         // @param added_vehicles if not nullptr any newly added vehicles will be appended to the vector
         bool split_vehicles( map &here, const std::vector<std::vector <int>> &new_vehs,
                              const std::vector<vehicle *> &new_vehicles,
-                             const std::vector<std::vector<point_rel_ms>> &new_mounts,
+                             const std::vector<std::vector<tripoint_rel_ms>> &new_mounts,
                              std::vector<vehicle *> *added_vehicles = nullptr );
 
         /** Get handle for base item of part */
@@ -1251,6 +1261,14 @@ class vehicle
         int part_with_feature( const point_rel_ms &pt, const std::string &f, bool unbroken,
                                bool include_fake = false ) const;
         /**
+        *  3D-mount overload of the above: delegates to the same lookup, but at
+        *  \p pt's own z so an upper-deck part is not confused with a ground-deck
+        *  one sharing the same (x, y).
+        *  @note does not use relative_parts cache
+        */
+        int part_with_feature( const tripoint_rel_ms &pt, const std::string &f, bool unbroken,
+                               bool include_fake = false ) const;
+        /**
         *  Returns part index at mount point \p pt which has given \p f flag
         *  @note uses relative_parts cache
         *  @param pt only returns parts from this mount point
@@ -1260,6 +1278,14 @@ class vehicle
         *  @returns part index or -1
         */
         int part_with_feature( const point_rel_ms &pt, vpart_bitflags f, bool unbroken,
+                               bool include_fake = false ) const;
+        /**
+        *  3D-mount overload of the above: looks up at \p pt's own z so an
+        *  upper-deck part is not confused with a ground-deck one sharing the
+        *  same (x, y).
+        *  @note uses relative_parts cache
+        */
+        int part_with_feature( const tripoint_rel_ms &pt, vpart_bitflags f, bool unbroken,
                                bool include_fake = false ) const;
         /**
         *  Returns \p p or part index at mount point \p pt which has given \p f flag
@@ -1428,6 +1454,8 @@ class vehicle
         int part_at( const point_rel_ms &dp ) const;
         int part_displayed_at( const point_rel_ms &dp, bool include_fake = false,
                                bool below_roof = true, bool roof = true ) const;
+        int part_displayed_at( const tripoint_rel_ms &dp, bool include_fake = false,
+                               bool below_roof = true, bool roof = true ) const;
         int roof_at_part( int p ) const;
 
         // Finds index of a given vehicle_part in parts vector, compared by address
@@ -1441,6 +1469,9 @@ class vehicle
         // @param roof if true roof parts are included
         // @returns filled vpart_display struct or default constructed if no part displayed
         vpart_display get_display_of_tile( const point_rel_ms &dp, bool rotate = true,
+                                           bool include_fake = true,
+                                           bool below_roof = true, bool roof = true ) const;
+        vpart_display get_display_of_tile( const tripoint_rel_ms &dp, bool rotate = true,
                                            bool include_fake = true,
                                            bool below_roof = true, bool roof = true ) const;
 
@@ -2379,6 +2410,15 @@ class vehicle
         std::shared_ptr<autodrive_controller> active_autodrive_controller; // NOLINT(cata-serialize)
 
     public:
+        // Const accessors for the z range of mount_min/mount_max (see above; the
+        // fields themselves stay private/mutable, only the z extent is exposed).
+        int mount_min_z() const {
+            return mount_min.z();
+        }
+        int mount_max_z() const {
+            return mount_max.z();
+        }
+
         /**
          * Submap coordinates of the currently loaded submap that contains this vehicle.
          * When the vehicle is really moved (by map::displace_vehicle), set_submap_moved

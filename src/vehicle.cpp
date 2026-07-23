@@ -1268,6 +1268,26 @@ bool vehicle::has_vertical_connector_at( const tripoint_rel_ms &dp ) const
     return false;
 }
 
+std::vector<tripoint_rel_ms> vehicle::connected_neighbours( const tripoint_rel_ms &mount ) const
+{
+    std::vector<tripoint_rel_ms> neighbours;
+    neighbours.reserve( 6 );
+    for( const point &offset : four_adjacent_offsets ) {
+        neighbours.emplace_back( mount + tripoint_rel_ms( offset.x, offset.y, 0 ) );
+    }
+    // Vertical edges are gated on a VERTICAL_CONNECTOR on the LOWER of the two tiles
+    // (same rule as can_mount): up from `mount` needs a connector on `mount`; down
+    // from `mount` needs a connector on the tile below.
+    if( has_vertical_connector_at( mount ) ) {
+        neighbours.emplace_back( mount + tripoint_rel_ms::above );
+    }
+    const tripoint_rel_ms below = mount + tripoint_rel_ms::below;
+    if( has_vertical_connector_at( below ) ) {
+        neighbours.push_back( below );
+    }
+    return neighbours;
+}
+
 /**
  * Returns whether or not the vehicle has a structural part queued for removal,
  * @return true if a structural is queue for removal, false if not.
@@ -1463,11 +1483,11 @@ ret_val<void> vehicle::can_unmount( const vehicle_part &vp_to_remove, bool allow
         return ret_val<void>::make_success(); // wrecks can have more than one structure part, so it's valid for removal
     }
 
-    // find all the vehicle's tiles adjacent to the one we're removing
+    // find all the vehicle's tiles adjacent to the one we're removing (a co-located
+    // connector is never a structure part, so the up-edge is a no-op here in practice)
     std::vector<vehicle_part> adjacent_parts;
-    for( const point &offset : four_adjacent_offsets ) {
-        const std::vector<int> parts_over_there = parts_at_relative(
-                    tripoint_rel_ms( vp_to_remove.mount.xy() + offset, 0 ), false );
+    for( const tripoint_rel_ms &np : connected_neighbours( vp_to_remove.mount ) ) {
+        const std::vector<int> parts_over_there = parts_at_relative( np, false );
         if( !parts_over_there.empty() ) {
             //Just need one part from the square to track the x/y
             adjacent_parts.push_back( parts[parts_over_there[0]] );
@@ -1516,47 +1536,39 @@ ret_val<void> vehicle::can_unmount( const vehicle_part &vp_to_remove, bool allow
 bool vehicle::is_connected( const vehicle_part &to, const vehicle_part &from,
                             const vehicle_part &excluded_part ) const
 {
-    const point_rel_ms target = to.mount.xy();
-    const point_rel_ms excluded = excluded_part.mount.xy();
+    const tripoint_rel_ms target = to.mount;
+    const tripoint_rel_ms excluded = excluded_part.mount;
 
-    std::queue<point_rel_ms> queue;
-    std::unordered_set<point_rel_ms> visited;
+    std::queue<tripoint_rel_ms> queue;
+    std::unordered_set<tripoint_rel_ms> visited;
 
-    queue.push( from.mount.xy() );
-    visited.insert( from.mount.xy() );
+    queue.push( from.mount );
+    visited.insert( from.mount );
     while( !queue.empty() ) {
-        const point_rel_ms current_pt = queue.front();
+        const tripoint_rel_ms current_pt = queue.front();
         queue.pop();
 
-        // in this case BFS "edges" are north/east/west/south tiles, diagonals don't connect
-        for( const point &offset : four_adjacent_offsets ) {
-            const point_rel_ms next = current_pt + offset;
-
+        for( const tripoint_rel_ms &next : connected_neighbours( current_pt ) ) {
             if( next == target ) {
                 return true; // found a path, bail out early from BFS
             }
-
             if( next == excluded ) {
                 continue; // can't traverse excluded tile
             }
-
-            const std::vector<int> parts_there = parts_at_relative( tripoint_rel_ms( next, 0 ), false );
-
+            const std::vector<int> parts_there = parts_at_relative( next, false );
             if( parts_there.empty() ) {
                 continue; // can't traverse empty tiles
             }
-
-            // 2022-08-27 assuming structure part is on 0th index is questionable but it worked before so...
+            // 2022-08-27 assuming structure part is on 0th index is questionable
+            // but it worked before so...
             const vehicle_part &vp_next = parts[ parts_there[ 0 ] ];
-
-            if( vp_next.info().location != part_location_structure || // not a structure part
-                vp_next.info().has_flag( "PROTRUSION" ) ||            // protrusions are not really a structure
-                vp_next.has_flag( vp_flag::carried_flag ) ) {         // carried frames are not a structure
+            if( vp_next.info().location != part_location_structure ||
+                vp_next.info().has_flag( "PROTRUSION" ) ||
+                vp_next.has_flag( vp_flag::carried_flag ) ) {
                 continue; // can't connect if it's not a structure
             }
-
-            if( visited.insert( vp_next.mount.xy() ).second ) { // .second is false if already in visited
-                queue.push( vp_next.mount.xy() ); // not visited, need to explore
+            if( visited.insert( vp_next.mount ).second ) {
+                queue.push( vp_next.mount );
             }
         }
     }
@@ -2100,7 +2112,14 @@ bool vehicle::merge_rackable_vehicle( map *here, vehicle *carry_veh,
         add_msg( _( "You load the %1$s on the rack." ), carry_veh->name );
         here->destroy_vehicle( carry_veh );
         here->dirty_vehicle_list.insert( this );
-        here->set_transparency_cache_dirty( sm_pos.z() );
+        // This vehicle (with the carried vehicle now merged in) may occupy
+        // multiple z-levels; dirty transparency on every level it spans. This keys
+        // on the permanent deck range (mount.z); if a multi-floor vehicle is merged
+        // mid-ramp the composed level (mount.z + ramp delta) can differ -- an
+        // occupied-z refinement is deferred with the rest of the driving work.
+        for( int dz = mount_min_z(); dz <= mount_max_z(); dz++ ) {
+            here->set_transparency_cache_dirty( sm_pos.z() + dz );
+        }
         here->set_seen_cache_dirty( tripoint_bub_ms::zero );
         here->invalidate_map_cache( here->get_abs_sub().z() );
         here->rebuild_vehicle_level_caches();
@@ -2230,7 +2249,8 @@ void vehicle::separate_from_grid( map *here, const point_rel_ms mount )
     const std::string part_name = part( idx ).name();
     std::vector<std::vector<int>> split_indices( { { idx } } );
     const std::vector<vehicle *> null_vehicles( 2, nullptr );
-    const std::vector<std::vector<point_rel_ms>> null_mounts( 2, std::vector<point_rel_ms>() );
+    const std::vector<std::vector<tripoint_rel_ms>> null_mounts( 2,
+            std::vector<tripoint_rel_ms>() );
     if( !split_vehicles( *here, split_indices, null_vehicles, null_mounts ) ) {
         debugmsg( "unable to split %s from power grid", part( idx ).name( false ) );
         return;
@@ -2333,12 +2353,18 @@ bool vehicle::remove_part( vehicle_part &vp, RemovePartHandler &handler )
 
     // if a windshield is removed (usually destroyed) also remove curtains
     // attached to it.
+    // vp is a specific, known part, so dirty the caches at its own composed level
+    // (precalc.z() == mount.z() + ramp offset) rather than the whole vehicle's
+    // z-range. At rest precalc.z() == mount.z() (0 for single-floor, i.e. the pre-M3
+    // sm_pos.z()); mid-ramp it is intentionally the part's actual rendered level, not
+    // the old z=0 -- a correctness improvement. Any out-of-range z is ignored by the
+    // inbounds_z guard inside set_transparency_cache_dirty/set_floor_cache_dirty.
     if( remove_dependent_part( "WINDOW", "CURTAIN" ) || vpi.has_flag( VPFLAG_OPAQUE ) ) {
-        handler.set_transparency_cache_dirty( sm_pos.z() );
+        handler.set_transparency_cache_dirty( sm_pos.z() + vp.precalc[0].z() );
     }
 
     if( vpi.has_flag( VPFLAG_ROOF ) || vpi.has_flag( VPFLAG_OPAQUE ) ) {
-        handler.set_floor_cache_dirty( sm_pos.z() + 1 );
+        handler.set_floor_cache_dirty( sm_pos.z() + vp.precalc[0].z() + 1 );
     }
 
     remove_dependent_part( "SEAT", "SEATBELT" );
@@ -2375,6 +2401,8 @@ bool vehicle::remove_part( vehicle_part &vp, RemovePartHandler &handler )
     }
 
     //Remove loot zone if Cargo was removed.
+    // loot_zones is keyed by planar point_rel_ms (save-format field); widening
+    // it to distinguish decks is deferred to a later milestone.
     const auto lz_iter = loot_zones.find( vp.mount.xy() );
     const bool no_zone = lz_iter != loot_zones.end();
 
@@ -2392,6 +2420,7 @@ bool vehicle::remove_part( vehicle_part &vp, RemovePartHandler &handler )
     const int vp_idx = index_of_part( &vp, /* include_removed = */ true );
     handler.removed( &handler.get_map_ref(), *this, vp_idx );
 
+    // labels is likewise keyed by planar point_rel_ms; same deferral as loot_zones above.
     const point_rel_ms vp_mount = vp.mount.xy();
     const auto iter = labels.find( label( vp_mount ) );
     if( iter != labels.end() && parts_at_relative( tripoint_rel_ms( vp_mount, 0 ), false ).empty() ) {
@@ -2505,7 +2534,7 @@ bool vehicle::remove_carried_vehicle( map &here, const std::vector<int> &carried
         return false;
     }
 
-    std::vector<point_rel_ms> new_mounts;
+    std::vector<tripoint_rel_ms> new_mounts;
     new_vehicle->name = carried_pivot->veh_name;
     new_vehicle->owner = owner;
     new_vehicle->old_owner = old_owner;
@@ -2531,7 +2560,7 @@ bool vehicle::remove_carried_vehicle( map &here, const std::vector<int> &carried
                 }
             }
         }
-        new_mounts.push_back( mount.xy() );
+        new_mounts.push_back( mount );
     }
 
     for( const int &rack_part : racks ) {
@@ -2629,9 +2658,8 @@ bool vehicle::find_and_split_vehicles( map &here, std::set<int> exclude )
                 veh_parts.push_back( p );
             }
             checked_parts.insert( test_part );
-            for( const point &offset : four_adjacent_offsets ) {
-                const point_rel_ms dp = parts[test_part].mount.xy() + offset;
-                std::vector<int> all_neighbor_parts = parts_at_relative( tripoint_rel_ms( dp, 0 ), true );
+            for( const tripoint_rel_ms &dp : connected_neighbours( parts[test_part].mount ) ) {
+                std::vector<int> all_neighbor_parts = parts_at_relative( dp, true );
                 int neighbor_struct_part = -1;
                 for( const int p : all_neighbor_parts ) {
                     const vehicle_part &vp_neighbor = parts[p];
@@ -2656,8 +2684,8 @@ bool vehicle::find_and_split_vehicles( map &here, std::set<int> exclude )
 
     if( !all_vehicles.empty() ) {
         const std::vector<vehicle *> null_vehicles( all_vehicles.size(), nullptr );
-        const std::vector<std::vector<point_rel_ms>> null_mounts( all_vehicles.size(),
-                std::vector<point_rel_ms>() );
+        const std::vector<std::vector<tripoint_rel_ms>> null_mounts( all_vehicles.size(),
+                std::vector<tripoint_rel_ms>() );
         std::vector<vehicle *> mark_wreckage { this };
         if( split_vehicles( here, all_vehicles, null_vehicles, null_mounts, &mark_wreckage ) ) {
             for( vehicle *veh : mark_wreckage ) {
@@ -2687,7 +2715,7 @@ void vehicle::relocate_passengers( const std::vector<Character *> &passengers ) 
 bool vehicle::split_vehicles( map &here,
                               const std::vector<std::vector <int>> &new_vehs,
                               const std::vector<vehicle *> &new_vehicles,
-                              const std::vector<std::vector<point_rel_ms>> &new_mounts,
+                              const std::vector<std::vector<tripoint_rel_ms>> &new_mounts,
                               std::vector<vehicle *> *added_vehicles )
 {
     bool did_split = false;
@@ -2698,7 +2726,7 @@ bool vehicle::split_vehicles( map &here,
         if( split_parts.empty() ) {
             continue;
         }
-        std::vector<point_rel_ms> split_mounts = new_mounts[ i ];
+        std::vector<tripoint_rel_ms> split_mounts = new_mounts[ i ];
         did_split = true;
 
         vehicle *new_vehicle = nullptr;
@@ -2707,7 +2735,7 @@ bool vehicle::split_vehicles( map &here,
         }
         int split_part0 = split_parts.front();
         tripoint_bub_ms new_v_pos3;
-        point_rel_ms mnt_offset;
+        tripoint_rel_ms mnt_offset;
 
         // if one part is an appliance it means we're dealing with a power grid
         bool is_appliance = parts[split_part0].info().has_flag( flag_APPLIANCE );
@@ -2727,7 +2755,7 @@ bool vehicle::split_vehicles( map &here,
                 }
             }
             new_v_pos3 = bub_part_pos( here, parts[ split_part0 ] );
-            mnt_offset = parts[ split_part0 ].mount.xy();
+            mnt_offset = parts[ split_part0 ].mount;
             new_vehicle = here.add_vehicle( vehicle_prototype_none, new_v_pos3, face.dir() );
             if( new_vehicle == nullptr ) {
                 // the split part was out of the map bounds.
@@ -2764,8 +2792,8 @@ bool vehicle::split_vehicles( map &here,
             const int mov_part = split_parts[ new_part ];
             vehicle_part &vp_mov = part( mov_part );
             const vpart_info &vpi_mov = vp_mov.info();
-            point_rel_ms cur_mount = vp_mov.mount.xy();
-            point_rel_ms new_mount = cur_mount;
+            tripoint_rel_ms cur_mount = vp_mov.mount;
+            tripoint_rel_ms new_mount = cur_mount;
             if( !split_mounts.empty() ) {
                 new_mount = split_mounts[ new_part ];
             } else {
@@ -2792,26 +2820,33 @@ bool vehicle::split_vehicles( map &here,
             }
             // transfer the vehicle_part to the new vehicle
             new_vehicle->parts.emplace_back( vp_mov );
-            new_vehicle->parts.back().mount = tripoint_rel_ms( new_mount.x(), new_mount.y(), 0 );
+            new_vehicle->parts.back().mount = new_mount;
 
+            // NOTE: labels and loot_zones are keyed by planar point_rel_ms (a
+            // save-format field), so this transfer matches by (x,y) only. For a
+            // multi-floor vehicle with zones/labels on the same (x,y) on different
+            // decks, this can move/erase the wrong deck's entry -- widening the keys
+            // to distinguish decks is deferred to a later milestone (the same
+            // limitation already noted at remove_part). Single-floor vehicles have
+            // one z per column, so they are unaffected.
             // remove labels associated with the mov_part
-            const auto iter = labels.find( label( cur_mount ) );
+            const auto iter = labels.find( label( cur_mount.xy() ) );
             if( iter != labels.end() ) {
                 std::string label_str = iter->text;
                 labels.erase( iter );
-                new_labels.insert( label( new_mount, label_str ) );
+                new_labels.insert( label( new_mount.xy(), label_str ) );
             }
             // Prepare the zones to be moved to the new vehicle
             const std::pair<std::unordered_multimap<point_rel_ms, zone_data>::iterator, std::unordered_multimap<point_rel_ms, zone_data>::iterator>
-            zones_on_point = loot_zones.equal_range( cur_mount );
+            zones_on_point = loot_zones.equal_range( cur_mount.xy() );
             for( std::unordered_multimap<point_rel_ms, zone_data>::const_iterator lz_iter =
                      zones_on_point.first;
                  lz_iter != zones_on_point.second; ++lz_iter ) {
-                new_zones.emplace( new_mount.raw(), lz_iter->second );
+                new_zones.emplace( new_mount.xy(), lz_iter->second );
             }
 
             // Erasing on the key removes all the zones from the point at once
-            loot_zones.erase( cur_mount );
+            loot_zones.erase( cur_mount.xy() );
 
             // The zone manager will be updated when we next interact with it through get_vehicle_zones
             zones_dirty = true;
@@ -2838,7 +2873,11 @@ bool vehicle::split_vehicles( map &here,
         new_vehicle->zones_dirty = true;
 
         here.dirty_vehicle_list.insert( new_vehicle );
-        here.set_transparency_cache_dirty( sm_pos.z() );
+        // Dirty transparency on every z-level this (the remaining, un-split)
+        // vehicle spans -- it may still be a multi-floor vehicle post-split.
+        for( int dz = mount_min_z(); dz <= mount_max_z(); dz++ ) {
+            here.set_transparency_cache_dirty( sm_pos.z() + dz );
+        }
         here.set_seen_cache_dirty( tripoint_bub_ms::zero );
         if( !new_labels.empty() ) {
             new_vehicle->labels = new_labels;
@@ -2848,7 +2887,7 @@ bool vehicle::split_vehicles( map &here,
             new_vehicle->refresh( );
         } else {
             // include refresh
-            new_vehicle->shift_parts( here, - mnt_offset );
+            new_vehicle->shift_parts( here, - mnt_offset.xy() );
         }
 
         // update the precalc points
@@ -3111,8 +3150,13 @@ int vehicle::part_with_feature( int part, vpart_bitflags flag, bool unbroken,
 int vehicle::part_with_feature( const point_rel_ms &pt, vpart_bitflags f, bool unbroken,
                                 bool include_fake ) const
 {
-    for( const int p : parts_at_relative( tripoint_rel_ms( pt, 0 ), /* use_cache = */ true,
-                                          include_fake ) ) {
+    return part_with_feature( tripoint_rel_ms( pt, 0 ), f, unbroken, include_fake );
+}
+
+int vehicle::part_with_feature( const tripoint_rel_ms &pt, vpart_bitflags f, bool unbroken,
+                                bool include_fake ) const
+{
+    for( const int p : parts_at_relative( pt, /* use_cache = */ true, include_fake ) ) {
         const vehicle_part &vp_here = this->part( p );
         if( vp_here.info().has_flag( f ) && !( unbroken && vp_here.is_broken() ) ) {
             return p;
@@ -3126,6 +3170,18 @@ int vehicle::part_with_feature( const point_rel_ms &pt, const std::string &flag,
 {
     for( const int p : parts_at_relative( tripoint_rel_ms( pt, 0 ), /* use_cache = */ false,
                                           include_fake ) ) {
+        const vehicle_part &vp_here = this->part( p );
+        if( vp_here.info().has_flag( flag ) && !( unbroken && vp_here.is_broken() ) ) {
+            return p;
+        }
+    }
+    return -1;
+}
+
+int vehicle::part_with_feature( const tripoint_rel_ms &pt, const std::string &flag, bool unbroken,
+                                bool include_fake ) const
+{
+    for( const int p : parts_at_relative( pt, /* use_cache = */ false, include_fake ) ) {
         const vehicle_part &vp_here = this->part( p );
         if( vp_here.info().has_flag( flag ) && !( unbroken && vp_here.is_broken() ) ) {
             return p;
@@ -3599,14 +3655,19 @@ int vehicle::index_of_part( const vehicle_part *part, bool include_removed ) con
 int vehicle::part_displayed_at( const point_rel_ms &dp, bool include_fake, bool below_roof,
                                 bool roof ) const
 {
+    return part_displayed_at( tripoint_rel_ms( dp, 0 ), include_fake, below_roof, roof );
+}
+
+int vehicle::part_displayed_at( const tripoint_rel_ms &dp, bool include_fake, bool below_roof,
+                                bool roof ) const
+{
     // Z-order is implicitly defined in game::load_vehiclepart, but as
     // numbers directly set on parts rather than constants that can be
     // used elsewhere. A future refactor might be nice but this way
     // it's clear where the magic number comes from.
     const int ON_ROOF_Z = 9;
 
-    std::vector<int> parts_in_square = parts_at_relative( tripoint_rel_ms( dp, 0 ), true,
-                                       include_fake );
+    std::vector<int> parts_in_square = parts_at_relative( dp, true, include_fake );
 
     if( parts_in_square.empty() ) {
         return -1;
@@ -3719,7 +3780,11 @@ void vehicle::precalc_mounts( int idir, const units::angle &dir,
         auto q = mount_to_precalc.find( p.mount );
         if( q == mount_to_precalc.end() ) {
             coord_translate( tdir, pivot, p.mount.xy(), p.precalc[idir] );
-            mount_to_precalc.insert( { p.mount, p.precalc[idir]} );
+            // coord_translate writes only x/y. Compose the z from the permanent
+            // deck (mount.z) and the transient ramp displacement (precalc_z_delta,
+            // owned by advance_precalc_mounts). The memo key is the full 3D mount.
+            p.precalc[idir].z() = p.mount.z() + p.precalc_z_delta;
+            mount_to_precalc.insert( { p.mount, p.precalc[idir] } );
         } else {
             p.precalc[idir] = q->second;
         }
@@ -6320,6 +6385,8 @@ void vehicle::make_active( item_location &loc )
     }
     // System insures that there is only one part in this vector.
     vehicle_part *cargo_part = cargo_parts.front();
+    // active_items is a planar (x,y) cache; the part above was already
+    // selected 3D via loc.pos_abs(), so this flattening is safe.
     active_items.add( target, cargo_part->mount.xy() );
 }
 
@@ -6380,6 +6447,8 @@ std::optional<vehicle_stack::iterator> vehicle::add_item( map &here, vehicle_par
     }
 
     const vehicle_stack::iterator new_pos = vp.items.insert( itm_copy );
+    // active_items is a planar (x,y) cache; upper-deck items still index by
+    // their x/y column here. The part is selected 3D above via mount.
     active_items.add( *new_pos, vp.mount.xy() );
 
     invalidate_mass();
@@ -6448,7 +6517,9 @@ void vehicle::place_spawn_items( map &here )
 
     for( const vehicle_prototype::part_def &pt : type->parts ) {
         if( pt.with_ammo ) {
-            int turret = part_with_feature( pt.pos.xy(), "TURRET", true );
+            // pt.pos is 3D (M2): select the turret at its own z so an
+            // upper-deck turret is not confused with one on the deck below.
+            int turret = part_with_feature( pt.pos, "TURRET", true );
             if( turret >= 0 && x_in_y( pt.with_ammo, 100 ) ) {
                 parts[ turret ].ammo_set( random_entry( pt.ammo_types ), rng( pt.ammo_qty.first,
                                           pt.ammo_qty.second ) );
@@ -6711,8 +6782,8 @@ void vehicle::refresh( const bool remove_fakes )
         }
     } svpv = { this };
 
-    mount_min = tripoint_rel_ms( 123, 123, 0 );
-    mount_max = tripoint_rel_ms( -123, -123, 0 );
+    mount_min = tripoint_rel_ms( 123, 123, 123 );
+    mount_max = tripoint_rel_ms( -123, -123, -123 );
 
     int railwheel_xmin = INT_MAX;
     int railwheel_ymin = INT_MAX;
@@ -6736,9 +6807,11 @@ void vehicle::refresh( const bool remove_fakes )
         // Build map of point -> all parts in that point
         const tripoint_rel_ms pt = vp.part().mount;
         mount_min = tripoint_rel_ms( std::min( mount_min.x(), pt.x() ),
-                                     std::min( mount_min.y(), pt.y() ), 0 );
+                                     std::min( mount_min.y(), pt.y() ),
+                                     std::min( mount_min.z(), pt.z() ) );
         mount_max = tripoint_rel_ms( std::max( mount_max.x(), pt.x() ),
-                                     std::max( mount_max.y(), pt.y() ), 0 );
+                                     std::max( mount_max.y(), pt.y() ),
+                                     std::max( mount_max.z(), pt.z() ) );
 
         // This will keep the parts at point pt sorted
         std::vector<int>::iterator vii = std::lower_bound( relative_parts[pt].begin(),
@@ -6886,6 +6959,8 @@ void vehicle::refresh( const bool remove_fakes )
             return;
         }
         // find neighbor info for current mount
+        // Fake-part edge/obstacle handling (this whole lambda family) is planar
+        // by design; upper-deck support is deferred to a later milestone.
         const tripoint_rel_ms real_mount3( real_mount.x(), real_mount.y(), 0 );
         vpart_edge_info edge_info = get_edge_info( real_mount3 );
         // add fake mounts based on the edge info
@@ -7119,6 +7194,7 @@ void vehicle::refresh_pivot( map &here ) const
             // broken wheels don't roll on either axis
             weight_i = contact_area * 2.0;
             weight_p = contact_area * 2.0;
+            // wheels are ground-deck only (mount.z==0), so .xy() here is safe.
         } else if( part_with_feature( wheel.mount.xy(), "STEERABLE", true ) != -1 ) {
             // Unbroken steerable wheels can handle motion on both axes
             // (but roll a little more easily inline)
@@ -7295,6 +7371,8 @@ bool vehicle::has_tow_attached() const
 
 void vehicle::set_tow_directions()
 {
+    // Towing is a ground-deck, driving-only path; upper-deck tow cables are
+    // deferred to a later milestone.
     const int length = mount_max.x() - mount_min.x() + 1;
     const point_rel_ms mount_of_tow = parts[get_tow_part()].mount.xy();
     const point_rel_ms normalized_tow_mount = point_rel_ms( std::abs( mount_of_tow.x() -
@@ -7338,6 +7416,8 @@ void vehicle::invalidate_towing( map &here, bool first_vehicle, Character *remov
         vehicle *other_veh = first_veh_is_towing ? tow_data.get_towed() :
                              is_towed() ? tow_data.get_towed_by() : nullptr;
         const int other_tow_cable_idx = other_veh ? other_veh->get_tow_part() : -1;
+        // planar cache; upper-deck support deferred to later milestone (towing
+        // is a ground-deck, driving-only path).
         const point_rel_ms other_tow_cable_mount = other_veh && other_tow_cable_idx > -1 ?
                 other_veh->part( other_tow_cable_idx ).mount.xy() : point_rel_ms::zero;
         if( other_veh ) {
@@ -7600,7 +7680,8 @@ void vehicle::refresh_insides()
         }
         /* If there's no roof, or there is a roof but it's broken, it's outside.
          * (Use short-circuiting || so broken frames don't screw this up) */
-        if( ( part_with_feature( vp.mount.xy(), "ROOF", true ) < 0 ) || !vp.is_available() ) {
+        // With two decks the roof that matters is at the part's own z, not z==0.
+        if( ( part_with_feature( vp.mount, "ROOF", true ) < 0 ) || !vp.is_available() ) {
             vp.inside = false;
             continue;
         }
@@ -7608,8 +7689,11 @@ void vehicle::refresh_insides()
         vp.inside = true; // inside if not otherwise
         for( const point &offset : four_adjacent_offsets ) { // let's check four neighbor parts
             bool cover = false; // if we aren't covered from sides, the roof at p won't save us
-            for( const int near_idx : parts_at_relative( tripoint_rel_ms( vp.mount.xy() + offset, 0 ),
-                    true ) ) {
+            // Check the four neighbours on the part's OWN deck (its mount.z), not the
+            // ground floor -- side coverage for an upper-deck tile comes from upper-deck
+            // parts. For single-deck vehicles mount.z == 0, so this is unchanged.
+            for( const int near_idx : parts_at_relative(
+                     vp.mount + tripoint_rel_ms( offset.x, offset.y, 0 ), true ) ) {
                 const vehicle_part &vp_near = part( near_idx );
                 const vpart_info &vpi_near = vp_near.info();
                 if( !vp_near.is_available() ) {
@@ -8778,6 +8862,10 @@ std::set<int> vehicle::advance_precalc_mounts( const point_sm_ms &new_pos,
         }
         prt.precalc[0].z() -= ramp_offset;
         prt.precalc[1].z() = prt.precalc[0].z();
+        // Record the ramp displacement above the mount deck so precalc_mounts can
+        // rebuild precalc.z = mount.z + precalc_z_delta on later ticks/rotations
+        // without clobbering an in-progress ramp climb.
+        prt.precalc_z_delta = prt.precalc[0].z() - prt.mount.z();
         smzs.insert( prt.precalc[0].z() );
     }
     if( adjust_pos ) {

@@ -54,6 +54,13 @@ Several different lines can have the same X, Y co-ordinates and each one adds ad
 
 An optional `"z"` field may also be specified: `{ "x": X, "y": Y, "z": Z, "parts": [ ... ] }`. `Z` is an integer, defaults to `0` when omitted, and selects the deck the part is mounted on: `0` is the ground deck, `1` is the upper deck. A part at `z > 0` must sit directly above a part with the `VERTICAL_CONNECTOR` flag, or be adjacent to another part already placed on the same `z`.
 
+As of the multi-floor work, a part authored at `"z": 1` renders on the upper
+deck: its final on-screen z is `mount.z` composed with any ramp displacement the
+vehicle currently has. From the ground deck you see the underside/roof of the
+deck above; the upper deck is drawn as a solid space when the avatar is standing
+on it. Parts on different decks are connected — for splitting, removal, and
+rendering — only through a `VERTICAL_CONNECTOR` part directly below.
+
 ### Extra options
 
 #### Turrets
