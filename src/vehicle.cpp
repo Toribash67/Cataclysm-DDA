@@ -1465,9 +1465,19 @@ ret_val<void> vehicle::can_unmount( const vehicle_part &vp_to_remove, bool allow
 
     // find all the vehicle's tiles adjacent to the one we're removing
     std::vector<vehicle_part> adjacent_parts;
+    std::vector<tripoint_rel_ms> neighbour_mounts;
     for( const point &offset : four_adjacent_offsets ) {
-        const std::vector<int> parts_over_there = parts_at_relative(
-                    tripoint_rel_ms( vp_to_remove.mount.xy() + offset, 0 ), false );
+        neighbour_mounts.emplace_back( vp_to_remove.mount + tripoint_rel_ms( offset.x, offset.y, 0 ) );
+    }
+    if( has_vertical_connector_at( vp_to_remove.mount ) ) {
+        neighbour_mounts.emplace_back( vp_to_remove.mount + tripoint_rel_ms::above );
+    }
+    const tripoint_rel_ms below_removed( vp_to_remove.mount + tripoint_rel_ms::below );
+    if( has_vertical_connector_at( below_removed ) ) {
+        neighbour_mounts.push_back( below_removed );
+    }
+    for( const tripoint_rel_ms &np : neighbour_mounts ) {
+        const std::vector<int> parts_over_there = parts_at_relative( np, false );
         if( !parts_over_there.empty() ) {
             //Just need one part from the square to track the x/y
             adjacent_parts.push_back( parts[parts_over_there[0]] );
@@ -1516,47 +1526,54 @@ ret_val<void> vehicle::can_unmount( const vehicle_part &vp_to_remove, bool allow
 bool vehicle::is_connected( const vehicle_part &to, const vehicle_part &from,
                             const vehicle_part &excluded_part ) const
 {
-    const point_rel_ms target = to.mount.xy();
-    const point_rel_ms excluded = excluded_part.mount.xy();
+    const tripoint_rel_ms target = to.mount;
+    const tripoint_rel_ms excluded = excluded_part.mount;
 
-    std::queue<point_rel_ms> queue;
-    std::unordered_set<point_rel_ms> visited;
+    std::queue<tripoint_rel_ms> queue;
+    std::unordered_set<tripoint_rel_ms> visited;
 
-    queue.push( from.mount.xy() );
-    visited.insert( from.mount.xy() );
+    queue.push( from.mount );
+    visited.insert( from.mount );
     while( !queue.empty() ) {
-        const point_rel_ms current_pt = queue.front();
+        const tripoint_rel_ms current_pt = queue.front();
         queue.pop();
 
-        // in this case BFS "edges" are north/east/west/south tiles, diagonals don't connect
+        // Planar edges (same z) plus connector-gated vertical edges. A vertical
+        // edge current<->above exists only if a VERTICAL_CONNECTOR sits on the
+        // lower of the two tiles (same rule as can_mount).
+        std::vector<tripoint_rel_ms> neighbours;
         for( const point &offset : four_adjacent_offsets ) {
-            const point_rel_ms next = current_pt + offset;
+            neighbours.emplace_back( current_pt + tripoint_rel_ms( offset.x, offset.y, 0 ) );
+        }
+        if( has_vertical_connector_at( current_pt ) ) {
+            neighbours.emplace_back( current_pt + tripoint_rel_ms::above );
+        }
+        const tripoint_rel_ms below = current_pt + tripoint_rel_ms::below;
+        if( has_vertical_connector_at( below ) ) {
+            neighbours.push_back( below );
+        }
 
+        for( const tripoint_rel_ms &next : neighbours ) {
             if( next == target ) {
                 return true; // found a path, bail out early from BFS
             }
-
             if( next == excluded ) {
                 continue; // can't traverse excluded tile
             }
-
-            const std::vector<int> parts_there = parts_at_relative( tripoint_rel_ms( next, 0 ), false );
-
+            const std::vector<int> parts_there = parts_at_relative( next, false );
             if( parts_there.empty() ) {
                 continue; // can't traverse empty tiles
             }
-
-            // 2022-08-27 assuming structure part is on 0th index is questionable but it worked before so...
+            // 2022-08-27 assuming structure part is on 0th index is questionable
+            // but it worked before so...
             const vehicle_part &vp_next = parts[ parts_there[ 0 ] ];
-
-            if( vp_next.info().location != part_location_structure || // not a structure part
-                vp_next.info().has_flag( "PROTRUSION" ) ||            // protrusions are not really a structure
-                vp_next.has_flag( vp_flag::carried_flag ) ) {         // carried frames are not a structure
+            if( vp_next.info().location != part_location_structure ||
+                vp_next.info().has_flag( "PROTRUSION" ) ||
+                vp_next.has_flag( vp_flag::carried_flag ) ) {
                 continue; // can't connect if it's not a structure
             }
-
-            if( visited.insert( vp_next.mount.xy() ).second ) { // .second is false if already in visited
-                queue.push( vp_next.mount.xy() ); // not visited, need to explore
+            if( visited.insert( vp_next.mount ).second ) {
+                queue.push( vp_next.mount );
             }
         }
     }
