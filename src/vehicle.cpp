@@ -7643,10 +7643,11 @@ void vehicle::refresh_insides()
         vp.inside = true; // inside if not otherwise
         for( const point &offset : four_adjacent_offsets ) { // let's check four neighbor parts
             bool cover = false; // if we aren't covered from sides, the roof at p won't save us
-            // NOTE: neighbor scan still pins z=0 (out of scope for M3 task 2;
-            // full multi-deck "inside" coverage is deferred to a later milestone).
-            for( const int near_idx : parts_at_relative( tripoint_rel_ms( vp.mount.xy() + offset, 0 ),
-                    true ) ) {
+            // Check the four neighbours on the part's OWN deck (its mount.z), not the
+            // ground floor -- side coverage for an upper-deck tile comes from upper-deck
+            // parts. For single-deck vehicles mount.z == 0, so this is unchanged.
+            for( const int near_idx : parts_at_relative(
+                     vp.mount + tripoint_rel_ms( offset.x, offset.y, 0 ), true ) ) {
                 const vehicle_part &vp_near = part( near_idx );
                 const vpart_info &vpi_near = vp_near.info();
                 if( !vp_near.is_available() ) {
