@@ -347,7 +347,19 @@ std::wstring utf8_to_wstr( const std::string &str )
     return wstr;
 #else
     std::size_t sz = std::mbstowcs( nullptr, str.c_str(), 0 );
-    cata_assert( sz != static_cast<size_t>( -1 ) );
+    if( sz == static_cast<size_t>( -1 ) ) {
+        // The active C-library locale (often plain "C" in headless/test runs) can't
+        // decode this multibyte string. CDDA text is UTF-8, so decode it directly by
+        // codepoint rather than aborting -- locale-independent, and matches how
+        // utf8_to_utf32 handles the same input.
+        std::wstring wstr;
+        const char *dat = str.c_str();
+        int len = static_cast<int>( str.length() );
+        while( len > 0 ) {
+            wstr.push_back( static_cast<wchar_t>( UTF8_getch( &dat, &len ) ) );
+        }
+        return wstr;
+    }
     std::wstring wstr( sz + 1, '\0' );
     [[maybe_unused]] const size_t converted = std::mbstowcs( wstr.data(), str.c_str(), sz );
     cata_assert( converted == sz );
