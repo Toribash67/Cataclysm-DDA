@@ -141,8 +141,8 @@ TEST_CASE( "precalc_z_composes_from_mount_z_across_rotations", "[vehicle][multif
     REQUIRE( saw_upper );
 
     for( const units::angle rot : {
-                0_degrees, 90_degrees, 180_degrees, 270_degrees
-            } ) {
+             0_degrees, 90_degrees, 180_degrees, 270_degrees
+         } ) {
         veh->precalc_mounts( 0, rot, point_rel_ms::zero );
         for( const vpart_reference &vpr : veh->get_all_parts() ) {
             const vehicle_part &vp = vpr.part();
