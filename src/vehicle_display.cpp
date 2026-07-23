@@ -69,7 +69,7 @@ vpart_display vehicle::get_display_of_tile( const tripoint_rel_ms &dp, bool rota
 {
     const int part_idx = part_displayed_at( dp, include_fake, below_roof, roof );
     if( part_idx == -1 ) {
-        debugmsg( "no display part at mount (%d, %d)", dp.x(), dp.y() );
+        debugmsg( "no display part at mount (%d, %d, %d)", dp.x(), dp.y(), dp.z() );
         return {};
     }
 

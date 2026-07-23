@@ -2113,7 +2113,10 @@ bool vehicle::merge_rackable_vehicle( map *here, vehicle *carry_veh,
         here->destroy_vehicle( carry_veh );
         here->dirty_vehicle_list.insert( this );
         // This vehicle (with the carried vehicle now merged in) may occupy
-        // multiple z-levels; dirty transparency on every level it spans.
+        // multiple z-levels; dirty transparency on every level it spans. This keys
+        // on the permanent deck range (mount.z); if a multi-floor vehicle is merged
+        // mid-ramp the composed level (mount.z + ramp delta) can differ -- an
+        // occupied-z refinement is deferred with the rest of the driving work.
         for( int dz = mount_min_z(); dz <= mount_max_z(); dz++ ) {
             here->set_transparency_cache_dirty( sm_pos.z() + dz );
         }
@@ -2819,6 +2822,13 @@ bool vehicle::split_vehicles( map &here,
             new_vehicle->parts.emplace_back( vp_mov );
             new_vehicle->parts.back().mount = new_mount;
 
+            // NOTE: labels and loot_zones are keyed by planar point_rel_ms (a
+            // save-format field), so this transfer matches by (x,y) only. For a
+            // multi-floor vehicle with zones/labels on the same (x,y) on different
+            // decks, this can move/erase the wrong deck's entry -- widening the keys
+            // to distinguish decks is deferred to a later milestone (the same
+            // limitation already noted at remove_part). Single-floor vehicles have
+            // one z per column, so they are unaffected.
             // remove labels associated with the mov_part
             const auto iter = labels.find( label( cur_mount.xy() ) );
             if( iter != labels.end() ) {
