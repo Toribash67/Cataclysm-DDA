@@ -251,3 +251,28 @@ TEST_CASE( "upper_deck_removal_blocked_when_only_link_is_connector", "[vehicle][
 
     CHECK( !veh->can_unmount( veh->part( idx_u0 ), false ).success() );
 }
+
+TEST_CASE( "removing_connector_splits_off_upper_deck", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    const int ladder = veh->part_with_feature( tripoint_rel_ms( 0, 0, 0 ),
+                       "VERTICAL_CONNECTOR", false );
+    REQUIRE( ladder >= 0 );
+
+    // Force the split: remove the only vertical link.
+    veh->remove_part( veh->part( ladder ) );
+    veh->find_and_split_vehicles( here, {} );
+
+    bool still_has_upper = false;
+    for( const vpart_reference &vpr : veh->get_all_parts() ) {
+        if( vpr.part().mount.z() == 1 && !vpr.part().removed ) {
+            still_has_upper = true;
+            break;
+        }
+    }
+    CHECK_FALSE( still_has_upper );
+}

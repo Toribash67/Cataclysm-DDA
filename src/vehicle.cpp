@@ -2248,7 +2248,8 @@ void vehicle::separate_from_grid( map *here, const point_rel_ms mount )
     const std::string part_name = part( idx ).name();
     std::vector<std::vector<int>> split_indices( { { idx } } );
     const std::vector<vehicle *> null_vehicles( 2, nullptr );
-    const std::vector<std::vector<point_rel_ms>> null_mounts( 2, std::vector<point_rel_ms>() );
+    const std::vector<std::vector<tripoint_rel_ms>> null_mounts( 2,
+            std::vector<tripoint_rel_ms>() );
     if( !split_vehicles( *here, split_indices, null_vehicles, null_mounts ) ) {
         debugmsg( "unable to split %s from power grid", part( idx ).name( false ) );
         return;
@@ -2526,7 +2527,7 @@ bool vehicle::remove_carried_vehicle( map &here, const std::vector<int> &carried
         return false;
     }
 
-    std::vector<point_rel_ms> new_mounts;
+    std::vector<tripoint_rel_ms> new_mounts;
     new_vehicle->name = carried_pivot->veh_name;
     new_vehicle->owner = owner;
     new_vehicle->old_owner = old_owner;
@@ -2552,7 +2553,7 @@ bool vehicle::remove_carried_vehicle( map &here, const std::vector<int> &carried
                 }
             }
         }
-        new_mounts.push_back( mount.xy() );
+        new_mounts.push_back( mount );
     }
 
     for( const int &rack_part : racks ) {
@@ -2650,9 +2651,23 @@ bool vehicle::find_and_split_vehicles( map &here, std::set<int> exclude )
                 veh_parts.push_back( p );
             }
             checked_parts.insert( test_part );
+            // Planar edges (same z) plus connector-gated vertical edges, matching
+            // the is_connected/can_unmount neighbour rule: a vertical edge exists
+            // only when a VERTICAL_CONNECTOR sits on the lower of the two tiles.
+            std::vector<tripoint_rel_ms> neighbour_mounts;
+            const tripoint_rel_ms cur = parts[test_part].mount;
             for( const point &offset : four_adjacent_offsets ) {
-                const point_rel_ms dp = parts[test_part].mount.xy() + offset;
-                std::vector<int> all_neighbor_parts = parts_at_relative( tripoint_rel_ms( dp, 0 ), true );
+                neighbour_mounts.emplace_back( cur + tripoint_rel_ms( offset.x, offset.y, 0 ) );
+            }
+            if( has_vertical_connector_at( cur ) ) {
+                neighbour_mounts.emplace_back( cur + tripoint_rel_ms::above );
+            }
+            const tripoint_rel_ms cur_below( cur + tripoint_rel_ms::below );
+            if( has_vertical_connector_at( cur_below ) ) {
+                neighbour_mounts.push_back( cur_below );
+            }
+            for( const tripoint_rel_ms &dp : neighbour_mounts ) {
+                std::vector<int> all_neighbor_parts = parts_at_relative( dp, true );
                 int neighbor_struct_part = -1;
                 for( const int p : all_neighbor_parts ) {
                     const vehicle_part &vp_neighbor = parts[p];
@@ -2677,8 +2692,8 @@ bool vehicle::find_and_split_vehicles( map &here, std::set<int> exclude )
 
     if( !all_vehicles.empty() ) {
         const std::vector<vehicle *> null_vehicles( all_vehicles.size(), nullptr );
-        const std::vector<std::vector<point_rel_ms>> null_mounts( all_vehicles.size(),
-                std::vector<point_rel_ms>() );
+        const std::vector<std::vector<tripoint_rel_ms>> null_mounts( all_vehicles.size(),
+                std::vector<tripoint_rel_ms>() );
         std::vector<vehicle *> mark_wreckage { this };
         if( split_vehicles( here, all_vehicles, null_vehicles, null_mounts, &mark_wreckage ) ) {
             for( vehicle *veh : mark_wreckage ) {
@@ -2708,7 +2723,7 @@ void vehicle::relocate_passengers( const std::vector<Character *> &passengers ) 
 bool vehicle::split_vehicles( map &here,
                               const std::vector<std::vector <int>> &new_vehs,
                               const std::vector<vehicle *> &new_vehicles,
-                              const std::vector<std::vector<point_rel_ms>> &new_mounts,
+                              const std::vector<std::vector<tripoint_rel_ms>> &new_mounts,
                               std::vector<vehicle *> *added_vehicles )
 {
     bool did_split = false;
@@ -2719,7 +2734,7 @@ bool vehicle::split_vehicles( map &here,
         if( split_parts.empty() ) {
             continue;
         }
-        std::vector<point_rel_ms> split_mounts = new_mounts[ i ];
+        std::vector<tripoint_rel_ms> split_mounts = new_mounts[ i ];
         did_split = true;
 
         vehicle *new_vehicle = nullptr;
@@ -2728,7 +2743,7 @@ bool vehicle::split_vehicles( map &here,
         }
         int split_part0 = split_parts.front();
         tripoint_bub_ms new_v_pos3;
-        point_rel_ms mnt_offset;
+        tripoint_rel_ms mnt_offset;
 
         // if one part is an appliance it means we're dealing with a power grid
         bool is_appliance = parts[split_part0].info().has_flag( flag_APPLIANCE );
@@ -2748,7 +2763,7 @@ bool vehicle::split_vehicles( map &here,
                 }
             }
             new_v_pos3 = bub_part_pos( here, parts[ split_part0 ] );
-            mnt_offset = parts[ split_part0 ].mount.xy();
+            mnt_offset = parts[ split_part0 ].mount;
             new_vehicle = here.add_vehicle( vehicle_prototype_none, new_v_pos3, face.dir() );
             if( new_vehicle == nullptr ) {
                 // the split part was out of the map bounds.
@@ -2785,8 +2800,8 @@ bool vehicle::split_vehicles( map &here,
             const int mov_part = split_parts[ new_part ];
             vehicle_part &vp_mov = part( mov_part );
             const vpart_info &vpi_mov = vp_mov.info();
-            point_rel_ms cur_mount = vp_mov.mount.xy();
-            point_rel_ms new_mount = cur_mount;
+            tripoint_rel_ms cur_mount = vp_mov.mount;
+            tripoint_rel_ms new_mount = cur_mount;
             if( !split_mounts.empty() ) {
                 new_mount = split_mounts[ new_part ];
             } else {
@@ -2813,26 +2828,26 @@ bool vehicle::split_vehicles( map &here,
             }
             // transfer the vehicle_part to the new vehicle
             new_vehicle->parts.emplace_back( vp_mov );
-            new_vehicle->parts.back().mount = tripoint_rel_ms( new_mount.x(), new_mount.y(), 0 );
+            new_vehicle->parts.back().mount = new_mount;
 
             // remove labels associated with the mov_part
-            const auto iter = labels.find( label( cur_mount ) );
+            const auto iter = labels.find( label( cur_mount.xy() ) );
             if( iter != labels.end() ) {
                 std::string label_str = iter->text;
                 labels.erase( iter );
-                new_labels.insert( label( new_mount, label_str ) );
+                new_labels.insert( label( new_mount.xy(), label_str ) );
             }
             // Prepare the zones to be moved to the new vehicle
             const std::pair<std::unordered_multimap<point_rel_ms, zone_data>::iterator, std::unordered_multimap<point_rel_ms, zone_data>::iterator>
-            zones_on_point = loot_zones.equal_range( cur_mount );
+            zones_on_point = loot_zones.equal_range( cur_mount.xy() );
             for( std::unordered_multimap<point_rel_ms, zone_data>::const_iterator lz_iter =
                      zones_on_point.first;
                  lz_iter != zones_on_point.second; ++lz_iter ) {
-                new_zones.emplace( new_mount.raw(), lz_iter->second );
+                new_zones.emplace( new_mount.xy(), lz_iter->second );
             }
 
             // Erasing on the key removes all the zones from the point at once
-            loot_zones.erase( cur_mount );
+            loot_zones.erase( cur_mount.xy() );
 
             // The zone manager will be updated when we next interact with it through get_vehicle_zones
             zones_dirty = true;
@@ -2869,7 +2884,7 @@ bool vehicle::split_vehicles( map &here,
             new_vehicle->refresh( );
         } else {
             // include refresh
-            new_vehicle->shift_parts( here, - mnt_offset );
+            new_vehicle->shift_parts( here, - mnt_offset.xy() );
         }
 
         // update the precalc points
