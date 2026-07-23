@@ -1467,7 +1467,8 @@ ret_val<void> vehicle::can_unmount( const vehicle_part &vp_to_remove, bool allow
     std::vector<vehicle_part> adjacent_parts;
     std::vector<tripoint_rel_ms> neighbour_mounts;
     for( const point &offset : four_adjacent_offsets ) {
-        neighbour_mounts.emplace_back( vp_to_remove.mount + tripoint_rel_ms( offset.x, offset.y, 0 ) );
+        neighbour_mounts.emplace_back(
+            vp_to_remove.mount + tripoint_rel_ms( offset.x, offset.y, 0 ) );
     }
     if( has_vertical_connector_at( vp_to_remove.mount ) ) {
         neighbour_mounts.emplace_back( vp_to_remove.mount + tripoint_rel_ms::above );
