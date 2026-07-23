@@ -2118,7 +2118,11 @@ bool vehicle::merge_rackable_vehicle( map *here, vehicle *carry_veh,
         add_msg( _( "You load the %1$s on the rack." ), carry_veh->name );
         here->destroy_vehicle( carry_veh );
         here->dirty_vehicle_list.insert( this );
-        here->set_transparency_cache_dirty( sm_pos.z() );
+        // This vehicle (with the carried vehicle now merged in) may occupy
+        // multiple z-levels; dirty transparency on every level it spans.
+        for( int dz = mount_min_z(); dz <= mount_max_z(); dz++ ) {
+            here->set_transparency_cache_dirty( sm_pos.z() + dz );
+        }
         here->set_seen_cache_dirty( tripoint_bub_ms::zero );
         here->invalidate_map_cache( here->get_abs_sub().z() );
         here->rebuild_vehicle_level_caches();
@@ -2352,12 +2356,15 @@ bool vehicle::remove_part( vehicle_part &vp, RemovePartHandler &handler )
 
     // if a windshield is removed (usually destroyed) also remove curtains
     // attached to it.
+    // vp is a specific, known part, so dirty the caches at its own level
+    // (precalc.z() == mount.z(), see Task 2) rather than the whole vehicle's
+    // z-range.
     if( remove_dependent_part( "WINDOW", "CURTAIN" ) || vpi.has_flag( VPFLAG_OPAQUE ) ) {
-        handler.set_transparency_cache_dirty( sm_pos.z() );
+        handler.set_transparency_cache_dirty( sm_pos.z() + vp.precalc[0].z() );
     }
 
     if( vpi.has_flag( VPFLAG_ROOF ) || vpi.has_flag( VPFLAG_OPAQUE ) ) {
-        handler.set_floor_cache_dirty( sm_pos.z() + 1 );
+        handler.set_floor_cache_dirty( sm_pos.z() + vp.precalc[0].z() + 1 );
     }
 
     remove_dependent_part( "SEAT", "SEATBELT" );
@@ -2874,7 +2881,11 @@ bool vehicle::split_vehicles( map &here,
         new_vehicle->zones_dirty = true;
 
         here.dirty_vehicle_list.insert( new_vehicle );
-        here.set_transparency_cache_dirty( sm_pos.z() );
+        // Dirty transparency on every z-level this (the remaining, un-split)
+        // vehicle spans -- it may still be a multi-floor vehicle post-split.
+        for( int dz = mount_min_z(); dz <= mount_max_z(); dz++ ) {
+            here.set_transparency_cache_dirty( sm_pos.z() + dz );
+        }
         here.set_seen_cache_dirty( tripoint_bub_ms::zero );
         if( !new_labels.empty() ) {
             new_vehicle->labels = new_labels;
@@ -3147,8 +3158,13 @@ int vehicle::part_with_feature( int part, vpart_bitflags flag, bool unbroken,
 int vehicle::part_with_feature( const point_rel_ms &pt, vpart_bitflags f, bool unbroken,
                                 bool include_fake ) const
 {
-    for( const int p : parts_at_relative( tripoint_rel_ms( pt, 0 ), /* use_cache = */ true,
-                                          include_fake ) ) {
+    return part_with_feature( tripoint_rel_ms( pt, 0 ), f, unbroken, include_fake );
+}
+
+int vehicle::part_with_feature( const tripoint_rel_ms &pt, vpart_bitflags f, bool unbroken,
+                                bool include_fake ) const
+{
+    for( const int p : parts_at_relative( pt, /* use_cache = */ true, include_fake ) ) {
         const vehicle_part &vp_here = this->part( p );
         if( vp_here.info().has_flag( f ) && !( unbroken && vp_here.is_broken() ) ) {
             return p;
@@ -3647,14 +3663,19 @@ int vehicle::index_of_part( const vehicle_part *part, bool include_removed ) con
 int vehicle::part_displayed_at( const point_rel_ms &dp, bool include_fake, bool below_roof,
                                 bool roof ) const
 {
+    return part_displayed_at( tripoint_rel_ms( dp, 0 ), include_fake, below_roof, roof );
+}
+
+int vehicle::part_displayed_at( const tripoint_rel_ms &dp, bool include_fake, bool below_roof,
+                                bool roof ) const
+{
     // Z-order is implicitly defined in game::load_vehiclepart, but as
     // numbers directly set on parts rather than constants that can be
     // used elsewhere. A future refactor might be nice but this way
     // it's clear where the magic number comes from.
     const int ON_ROOF_Z = 9;
 
-    std::vector<int> parts_in_square = parts_at_relative( tripoint_rel_ms( dp, 0 ), true,
-                                       include_fake );
+    std::vector<int> parts_in_square = parts_at_relative( dp, true, include_fake );
 
     if( parts_in_square.empty() ) {
         return -1;

@@ -276,3 +276,21 @@ TEST_CASE( "removing_connector_splits_off_upper_deck", "[vehicle][multifloor]" )
     }
     CHECK_FALSE( still_has_upper );
 }
+
+TEST_CASE( "part_displayed_at_resolves_per_deck", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+
+    // Ground deck at (0,0,0) shows a ground structure part; upper deck at
+    // (0,0,1) shows the deck floor. They must resolve to DIFFERENT parts.
+    const int ground = veh->part_displayed_at( tripoint_rel_ms( 0, 0, 0 ), false, true, false );
+    const int upper  = veh->part_displayed_at( tripoint_rel_ms( 0, 0, 1 ), false, true, false );
+    REQUIRE( ground >= 0 );
+    REQUIRE( upper >= 0 );
+    CHECK( ground != upper );
+    CHECK( veh->part( upper ).mount.z() == 1 );
+}

@@ -1274,6 +1274,14 @@ class vehicle
         int part_with_feature( const point_rel_ms &pt, vpart_bitflags f, bool unbroken,
                                bool include_fake = false ) const;
         /**
+        *  3D-mount overload of the above: looks up at \p pt's own z so an
+        *  upper-deck part is not confused with a ground-deck one sharing the
+        *  same (x, y).
+        *  @note uses relative_parts cache
+        */
+        int part_with_feature( const tripoint_rel_ms &pt, vpart_bitflags f, bool unbroken,
+                               bool include_fake = false ) const;
+        /**
         *  Returns \p p or part index at mount point \p pt which has given \p f flag
         *  @note uses relative_parts cache
         *  @param p index of part to start searching from
@@ -1440,6 +1448,8 @@ class vehicle
         int part_at( const point_rel_ms &dp ) const;
         int part_displayed_at( const point_rel_ms &dp, bool include_fake = false,
                                bool below_roof = true, bool roof = true ) const;
+        int part_displayed_at( const tripoint_rel_ms &dp, bool include_fake = false,
+                               bool below_roof = true, bool roof = true ) const;
         int roof_at_part( int p ) const;
 
         // Finds index of a given vehicle_part in parts vector, compared by address
@@ -1453,6 +1463,9 @@ class vehicle
         // @param roof if true roof parts are included
         // @returns filled vpart_display struct or default constructed if no part displayed
         vpart_display get_display_of_tile( const point_rel_ms &dp, bool rotate = true,
+                                           bool include_fake = true,
+                                           bool below_roof = true, bool roof = true ) const;
+        vpart_display get_display_of_tile( const tripoint_rel_ms &dp, bool rotate = true,
                                            bool include_fake = true,
                                            bool below_roof = true, bool roof = true ) const;
 
