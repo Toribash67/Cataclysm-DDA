@@ -1238,12 +1238,30 @@ bool vehicle::has_structural_part( const point &dp ) const
 
 bool vehicle::has_structural_part( const point_rel_ms &dp ) const
 {
-    for( const int elem : parts_at_relative( tripoint_rel_ms( dp, 0 ), false ) ) {
+    return has_structural_part( tripoint_rel_ms( dp, 0 ) );
+}
+
+bool vehicle::has_structural_part( const tripoint_rel_ms &dp ) const
+{
+    for( const int elem : parts_at_relative( dp, false ) ) {
         const vehicle_part &vp = part( elem );
         const vpart_info &vpi = vp.info();
         if( vpi.location == part_location_structure &&
             !vp.has_flag( vp_flag::carried_flag ) &&
             !vpi.has_flag( "PROTRUSION" ) ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool vehicle::has_vertical_connector_at( const tripoint_rel_ms &dp ) const
+{
+    for( const int elem : parts_at_relative( dp, false ) ) {
+        const vehicle_part &vp = part( elem );
+        const vpart_info &vpi = vp.info();
+        if( vpi.has_flag( VPFLAG_VERTICAL_CONNECTOR ) &&
+            !vp.has_flag( vp_flag::carried_flag ) ) {
             return true;
         }
     }
@@ -1266,7 +1284,12 @@ bool vehicle::is_structural_part_removed() const
 
 ret_val<void> vehicle::can_mount( const point_rel_ms &dp, const vpart_info &vpi ) const
 {
-    const std::vector<int> parts_in_square = parts_at_relative( tripoint_rel_ms( dp, 0 ),
+    return can_mount( tripoint_rel_ms( dp, 0 ), vpi );
+}
+
+ret_val<void> vehicle::can_mount( const tripoint_rel_ms &dp, const vpart_info &vpi ) const
+{
+    const std::vector<int> parts_in_square = parts_at_relative( dp,
             /* use_cache = */ false, /* include_fake = */ false );
 
     if( parts_in_square.empty() ) {
@@ -1325,16 +1348,27 @@ ret_val<void> vehicle::can_mount( const point_rel_ms &dp, const vpart_info &vpi 
         }
     }
 
-    // All parts after the first must be installed on or next to an existing part
-    // the exception is when a single tile only structural object is being repaired
+    // All parts after the first must be installed on or next to an existing part.
+    // The exception is when a single tile only structural object is being repaired.
     if( !parts.empty() ) {
-        if( !is_structural_part_removed() &&
-            !has_structural_part( dp ) &&
-            !has_structural_part( dp + point::east ) &&
-            !has_structural_part( dp + point::south ) &&
-            !has_structural_part( dp + point::west ) &&
-            !has_structural_part( dp + point::north ) ) {
-            return ret_val<void>::make_failure( _( "Part needs to be adjacent to or on existing structure." ) );
+        const tripoint_rel_ms east( dp + tripoint_rel_ms::east );
+        const tripoint_rel_ms south( dp + tripoint_rel_ms::south );
+        const tripoint_rel_ms west( dp + tripoint_rel_ms::west );
+        const tripoint_rel_ms north( dp + tripoint_rel_ms::north );
+        const bool supported_in_plane =
+            has_structural_part( dp ) ||
+            has_structural_part( east ) ||
+            has_structural_part( south ) ||
+            has_structural_part( west ) ||
+            has_structural_part( north );
+        // Decks connect only through an explicit vertical connector: a bare
+        // z-neighbour is NOT connectivity (multi-floor design section 1).
+        const bool supported_from_below =
+            dp.z() > 0 &&
+            has_vertical_connector_at( dp + tripoint_rel_ms::below );
+        if( !is_structural_part_removed() && !supported_in_plane && !supported_from_below ) {
+            return ret_val<void>::make_failure(
+                       _( "Part needs to be adjacent to or on existing structure." ) );
         }
     }
 
@@ -1680,10 +1714,20 @@ bool vehicle::is_appliance() const
 
 int vehicle::install_part( map &here, const point_rel_ms &dp, const vpart_id &type )
 {
+    return install_part( here, tripoint_rel_ms( dp, 0 ), type );
+}
+
+int vehicle::install_part( map &here, const tripoint_rel_ms &dp, const vpart_id &type )
+{
     return install_part( here, dp, type, item( type.obj().base_item ) );
 }
 
 int vehicle::install_part( map &here, const point_rel_ms &dp, const vpart_id &type, item &&base )
+{
+    return install_part( here, tripoint_rel_ms( dp, 0 ), type, std::move( base ) );
+}
+
+int vehicle::install_part( map &here, const tripoint_rel_ms &dp, const vpart_id &type, item &&base )
 {
     return install_part( here, dp, vehicle_part( type, std::move( base ) ) );
 }
@@ -1691,10 +1735,21 @@ int vehicle::install_part( map &here, const point_rel_ms &dp, const vpart_id &ty
 int vehicle::install_part( map &here, const point_rel_ms &dp, const vpart_id &type, item &&base,
                            std::vector<item> &installed_with )
 {
-    return install_part( here,  dp, vehicle_part( type, std::move( base ), installed_with ) );
+    return install_part( here, tripoint_rel_ms( dp, 0 ), type, std::move( base ), installed_with );
+}
+
+int vehicle::install_part( map &here, const tripoint_rel_ms &dp, const vpart_id &type, item &&base,
+                           std::vector<item> &installed_with )
+{
+    return install_part( here, dp, vehicle_part( type, std::move( base ), installed_with ) );
 }
 
 int vehicle::install_part( map &here, const point_rel_ms &dp, vehicle_part &&vp )
+{
+    return install_part( here, tripoint_rel_ms( dp, 0 ), std::move( vp ) );
+}
+
+int vehicle::install_part( map &here, const tripoint_rel_ms &dp, vehicle_part &&vp )
 {
     const vpart_info &vpi = vp.info();
     const ret_val<void> valid_mount = can_mount( dp, vpi );
@@ -1749,7 +1804,7 @@ int vehicle::install_part( map &here, const point_rel_ms &dp, vehicle_part &&vp 
     remove_fake_parts( here, true );
     vehicle_part &vp_installed = parts.emplace_back( std::move( vp ) );
     vp_installed.enabled = enable;
-    vp_installed.mount = tripoint_rel_ms( dp.x(), dp.y(), 0 );
+    vp_installed.mount = dp;
     const int vp_installed_index = parts.size() - 1;
     refresh( );
     coeff_air_changed = true;
@@ -6393,7 +6448,7 @@ void vehicle::place_spawn_items( map &here )
 
     for( const vehicle_prototype::part_def &pt : type->parts ) {
         if( pt.with_ammo ) {
-            int turret = part_with_feature( pt.pos, "TURRET", true );
+            int turret = part_with_feature( pt.pos.xy(), "TURRET", true );
             if( turret >= 0 && x_in_y( pt.with_ammo, 100 ) ) {
                 parts[ turret ].ammo_set( random_entry( pt.ammo_types ), rng( pt.ammo_qty.first,
                                           pt.ammo_qty.second ) );

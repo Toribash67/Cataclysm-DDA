@@ -1,0 +1,44 @@
+[
+  {
+    "type": "vehicle_part",
+    "id": "ladder_internal",
+    "name": { "str": "internal ladder" },
+    "categories": [ "hull" ],
+    "durability": 200,
+    "description": "A fixed ladder connecting this deck to the one above it.",
+    "item": "aluminum_stepladder",
+    "location": "center",
+    "requirements": {
+      "install": { "skills": [ [ "mechanics", 3 ] ], "time": "60 m", "using": [ [ "vehicle_bolt_install", 1 ] ] },
+      "removal": { "skills": [ [ "mechanics", 2 ] ], "time": "30 m", "using": [ [ "vehicle_wrench_2", 1 ] ] }
+    },
+    "breaks_into": [ { "item": "scrap_aluminum", "count": [ 2, 4 ] } ],
+    "flags": [ "VERTICAL_CONNECTOR", "BOARDABLE", "OBSTACLE" ],
+    "variants": [ { "symbols": "H", "symbols_broken": "x" } ]
+  },
+  {
+    "type": "vehicle_part",
+    "id": "deck_floor",
+    "name": { "str": "deck floor" },
+    "categories": [ "hull" ],
+    "durability": 300,
+    "description": "A solid metal floor panel forming the deck above.",
+    "item": "sheet_metal",
+    "location": "roof",
+    "requirements": {
+      "install": {
+        "skills": [ [ "mechanics", 3 ] ],
+        "time": "60 m",
+        "using": [ [ "welding_standard", 200 ], [ "vehicle_bolt_install", 2 ] ]
+      },
+      "removal": {
+        "skills": [ [ "mechanics", 2 ] ],
+        "time": "30 m",
+        "using": [ [ "vehicle_weld_removal", 1 ], [ "vehicle_wrench_2", 1 ] ]
+      }
+    },
+    "breaks_into": "ig_vp_sheet_metal",
+    "flags": [ "ROOF", "BOARDABLE" ],
+    "variants": [ { "symbols": "#", "symbols_broken": "#" } ]
+  }
+]
