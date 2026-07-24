@@ -588,3 +588,66 @@ TEST_CASE( "wheels_touch_ground_only_on_deck_zero", "[vehicle][multifloor]" )
         CHECK( veh->part( w ).mount.z() == 0 );
     }
 }
+
+// M5 §6.3 cross term (mount.z x ramp): while a two-floor vehicle is transiting
+// a ramp, advance_precalc_mounts records the ramp displacement into the
+// transient precalc_z_delta (vehicle.cpp ~8867-8892), and precalc_mounts
+// reseeds precalc.z = mount.z + precalc_z_delta (vehicle.cpp ~3807). This
+// proves that composition holds for the upper deck too: at every tick, each
+// upper-deck part must sit exactly one z above the lower-deck part sharing
+// its (x,y) mount, i.e. the deck gap is invariant to ramp displacement.
+TEST_CASE( "upper_deck_precalc_z_tracks_lower_deck_over_ramp", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+
+    // Build a short up-ramp along the drive axis (mirror vehicle_ramp_test's terrain).
+    const int y = 60;
+    const int lowx = 66;
+    const int highx = 67;
+    here.ter_set( tripoint_bub_ms( lowx,  y, 0 ), ter_id( "t_ramp_up_low" ) );
+    here.ter_set( tripoint_bub_ms( highx, y, 0 ), ter_id( "t_ramp_up_high" ) );
+    here.ter_set( tripoint_bub_ms( lowx,  y, 1 ), ter_id( "t_ramp_down_low" ) );
+    here.ter_set( tripoint_bub_ms( highx, y, 1 ), ter_id( "t_ramp_down_high" ) );
+
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, y, 0 ), 0_degrees, 100, 0 );
+    REQUIRE( veh != nullptr );
+    veh->check_falling_or_floating();
+    veh->tags.insert( "IN_CONTROL_OVERRIDE" );
+    veh->engine_on = true;
+    veh->cruise_velocity = 400;
+    veh->velocity = 400;
+
+    auto deck_gap_holds = [&]() {
+        // Map every occupied (x,y) mount to the set of z's present there.
+        for( const vpart_reference &up : veh->get_all_parts() ) {
+            const vehicle_part &pu = up.part();
+            if( pu.removed || pu.is_fake || pu.mount.z() != 1 ) {
+                continue;
+            }
+            // find the lower-deck partner at the same (x,y)
+            bool found = false;
+            for( const vpart_reference &lo : veh->get_all_parts() ) {
+                const vehicle_part &pl = lo.part();
+                if( pl.removed || pl.is_fake || pl.mount.z() != 0 ) {
+                    continue;
+                }
+                if( pl.mount.xy() == pu.mount.xy() ) {
+                    CAPTURE( pu.mount.xy() );
+                    CHECK( pu.precalc[0].z() == pl.precalc[0].z() + 1 );
+                    found = true;
+                }
+            }
+            CAPTURE( pu.mount.xy() );
+            CHECK( found ); // every upper-deck tile has a lower-deck floor beneath it
+        }
+    };
+
+    for( int cycle = 0; cycle < 8; cycle++ ) {
+        CAPTURE( cycle );
+        deck_gap_holds();
+        here.vehmove();
+    }
+    deck_gap_holds();
+}

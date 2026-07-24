@@ -8878,9 +8878,18 @@ std::set<int> vehicle::advance_precalc_mounts( const point_sm_ms &new_pos,
         } else if( !adjust_pos &&  parts_to_move.find( index ) != parts_to_move.end() ) {
             prt.precalc[0].z() += dp.z();
         }
-        if( here->has_flag( ter_furn_flag::TFLAG_RAMP_UP, src + dp + prt.precalc[0] ) ) {
+        // A ramp is a GROUND feature: the z-transition for a whole (x,y) column is decided by the
+        // column's ground deck (mount.z == 0) and applied to every deck, so an upper deck climbs
+        // or descends WITH the ground deck. Probing at the part's own z instead lets an upper-deck
+        // part (at z+1) read the paired ramp terrain a z-level away -- RAMP_DOWN sits directly over
+        // the RAMP_UP high end -- and transition opposite to the ground deck, desyncing the stack.
+        // For a ground-deck part (mount.z == 0) ground_probe == precalc[0], so this is a no-op for
+        // single-floor vehicles (byte-identical to the previous probe).
+        tripoint_rel_ms ground_probe = prt.precalc[0];
+        ground_probe.z() -= prt.mount.z();
+        if( here->has_flag( ter_furn_flag::TFLAG_RAMP_UP, src + dp + ground_probe ) ) {
             prt.precalc[0].z() += 1;
-        } else if( here->has_flag( ter_furn_flag::TFLAG_RAMP_DOWN, src + dp + prt.precalc[0] ) ) {
+        } else if( here->has_flag( ter_furn_flag::TFLAG_RAMP_DOWN, src + dp + ground_probe ) ) {
             prt.precalc[0].z() -= 1;
         }
         prt.precalc[0].z() -= ramp_offset;
