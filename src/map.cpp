@@ -1457,6 +1457,32 @@ void map::unboard_vehicle( const tripoint_bub_ms &p, bool dead_passenger )
     unboard_vehicle( *vp, passenger, dead_passenger );
 }
 
+void map::vehicle_floor_removed_recheck( const tripoint_bub_ms &p )
+{
+    Creature *c = get_creature_tracker().creature_at( p, true );
+    if( c == nullptr ) {
+        return;
+    }
+    // Still floored by the vehicle at this tile? then supported, nothing to do.
+    // Use the part's full 3D .mount (mount_pos() is 2D and would look at the wrong deck).
+    const optional_vpart_position vp = veh_at( p );
+    if( vp ) {
+        vehicle &veh = vp->vehicle();
+        if( veh.part_with_feature( veh.part( vp->part_index() ).mount,
+                                   VPFLAG_BOARDABLE, false ) >= 0 ) {
+            return;
+        }
+    }
+    if( Character *ch = c->as_character() ) {
+        if( ch->in_vehicle ) {
+            unboard_vehicle( p );
+        }
+        ch->gravity_check( this );
+    } else if( monster *m = c->as_monster() ) {
+        m->gravity_check( this );
+    }
+}
+
 bool map::displace_vehicle( vehicle &veh, const tripoint_rel_ms &dp, const bool adjust_pos,
                             const std::set<int> &parts_to_move )
 {

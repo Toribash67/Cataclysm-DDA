@@ -806,6 +806,13 @@ class map
                               bool dead_passenger = false );
         // Remove passenger from vehicle at p.
         void unboard_vehicle( const tripoint_bub_ms &p, bool dead_passenger = false );
+        /**
+         * A vehicle floor part was just removed from tile `p`. If a creature is standing
+         * there and the vehicle no longer provides a boardable floor at that tile, drop
+         * the creature's boarding status (characters) and re-run its gravity check so it
+         * falls instead of hovering over open air. No-op when the tile is still floored.
+         */
+        void vehicle_floor_removed_recheck( const tripoint_bub_ms &p );
         // Change vehicle coordinates and move vehicle's driver along.
         // WARNING: not checking collisions!
         // optionally: include a list of parts to displace instead of the entire vehicle

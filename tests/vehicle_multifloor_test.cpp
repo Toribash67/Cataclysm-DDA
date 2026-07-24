@@ -1,8 +1,12 @@
 #include "avatar.h"
 #include "cata_catch.h"
+#include "creature_tracker.h"
+#include "damage.h"
 #include "game.h"
 #include "map.h"
 #include "map_helpers.h"
+#include "monster.h"
+#include "mtype.h"
 #include "player_helpers.h"
 #include "vehicle.h"
 #include "veh_type.h"
@@ -10,6 +14,8 @@
 #include "coordinates.h"
 
 static const vproto_id vehicle_prototype_car( "car" );
+static const damage_type_id damage_bash( "bash" );
+static const mtype_id mon_zombie( "mon_zombie" );
 
 TEST_CASE( "vehicle_prototype_parts_default_to_z_zero", "[vehicle][multifloor]" )
 {
@@ -403,4 +409,74 @@ TEST_CASE( "try_vehicle_deck_move_declines_off_vehicle", "[vehicle][multifloor]"
     // No vehicle at the avatar's tile at all: executor declines, no crash.
     CHECK_FALSE( g->try_vehicle_deck_move( 1 ) );
     CHECK_FALSE( g->try_vehicle_deck_move( -1 ) );
+}
+
+TEST_CASE( "destroying_upper_floor_drops_the_rider", "[vehicle][multifloor]" )
+{
+    clear_map();
+    clear_creatures();
+    clear_avatar();
+    map &here = get_map();
+    // A prior test may have left the avatar parked on the bus origin tile; clear_avatar
+    // resets stats but not position, so move it well clear of the spawn tiles.
+    get_avatar().setpos( here, tripoint_bub_ms{ 0, 0, -2 } );
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+
+    // The upper cargo/floor tile (1,0,1) sits over open air terrain at z=1.
+    const int floor_idx = veh->part_with_feature( tripoint_rel_ms( 1, 0, 1 ), "BOARDABLE", false );
+    REQUIRE( floor_idx >= 0 );
+    const tripoint_bub_ms floor_pos = veh->bub_part_pos( here, veh->part( floor_idx ) );
+    REQUIRE( floor_pos.z() == 1 );
+    REQUIRE( here.is_open_air( floor_pos ) ); // terrain beneath the deck is open air
+
+    // Put a zombie on that upper-deck floor. With the floor intact it must NOT fall.
+    monster &zed = spawn_test_monster( "mon_zombie", floor_pos );
+    zed.gravity_check( &here );
+    REQUIRE( zed.pos_bub( here ) == floor_pos );
+
+    // Destroy the whole upper floor tile, then let break_off run its recheck.
+    // vehicle::damage_direct/break_off are private, so we go through the public
+    // vehicle::damage() entry point; it spreads damage randomly across all parts
+    // sharing the target's mount, and a part only tears off (break_off) once broken.
+    // NOTE: valid_move refuses to drop a creature while ANY vehicle part still
+    // occupies the tile -- a bare structural frame is a legitimate standing surface
+    // even after the BOARDABLE deck floor is gone. So the rider only falls once the
+    // tile is entirely vehicle-free. Hammer the mount's structural frame with massive
+    // damage until break_off's structural branch clears every part on that mount
+    // (the frame's removal cascades to the deck floor and cargo on the same tile).
+    for( int i = 0; i < 500; ++i ) {
+        const int idx = structure_part_at( *veh, tripoint_rel_ms( 1, 0, 1 ) );
+        if( idx < 0 ) {
+            break;
+        }
+        veh->damage( here, idx, 100000, damage_bash );
+    }
+    REQUIRE( veh->parts_at_relative( tripoint_rel_ms( 1, 0, 1 ), false ).empty() );
+
+    // The tile is now open air with no vehicle floor, so the recheck must have
+    // dropped the zombie off z=1.
+    monster *still = get_creature_tracker().creature_at<monster>( floor_pos );
+    CHECK( still == nullptr );
+}
+
+TEST_CASE( "destroying_ground_part_does_not_drop_rider", "[vehicle][multifloor]" )
+{
+    clear_map();
+    clear_creatures();
+    clear_avatar();
+    map &here = get_map();
+    // clear_avatar resets stats but not position; move the avatar clear of the spawn tile.
+    get_avatar().setpos( here, tripoint_bub_ms{ 0, 0, -2 } );
+    vehicle *veh = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms( 60, 60, 0 ),
+                                     0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    const int seat = veh->part_with_feature( tripoint_rel_ms( 0, 0, 0 ), "BOARDABLE", false );
+    REQUIRE( seat >= 0 );
+    const tripoint_bub_ms seat_pos = veh->bub_part_pos( here, veh->part( seat ) );
+    REQUIRE_FALSE( here.is_open_air( seat_pos ) );
+    monster &zed = spawn_test_monster( "mon_zombie", seat_pos );
+    here.vehicle_floor_removed_recheck( seat_pos );      // direct call: must be a no-op on solid ground
+    CHECK( zed.pos_bub( here ) == seat_pos );
 }

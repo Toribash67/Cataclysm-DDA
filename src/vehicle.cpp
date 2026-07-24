@@ -8049,6 +8049,8 @@ int vehicle::break_off( map &here, vehicle_part &vp, int dmg )
         }
     }
 
+    // If we just tore out a floor from under someone, make them fall (M4).
+    here.vehicle_floor_removed_recheck( pos );
     return dmg;
 }
 
