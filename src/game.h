@@ -324,6 +324,14 @@ class game
          * If peeking == true, forbids some exotic movement options
          */
         void vertical_move( int z, bool force, bool peeking = false );
+        /**
+         * If the avatar is standing on a vehicle tile whose VERTICAL_CONNECTOR permits
+         * moving `movez` (+/-1) to the deck above/below, perform that intra-bubble deck
+         * change (re-center the reality bubble at the new z, keep x/y, re-board) and
+         * return true. Return false -- doing nothing -- when no deck traversal applies,
+         * so vertical_move() falls through to its normal terrain-based handling.
+         */
+        bool try_vehicle_deck_move( int movez );
         void start_hauling( const tripoint_bub_ms &pos );
         /** Returns the other end of the stairs (if any). May query, affect u etc.
         * @param pos Disable queries and msgs if not the same position as player.

@@ -1,6 +1,9 @@
+#include "avatar.h"
 #include "cata_catch.h"
+#include "game.h"
 #include "map.h"
 #include "map_helpers.h"
+#include "player_helpers.h"
 #include "vehicle.h"
 #include "veh_type.h"
 #include "type_id.h"
@@ -337,4 +340,67 @@ TEST_CASE( "allows_deck_traversal_requires_floor_at_destination", "[vehicle][mul
     REQUIRE( veh->install_part( here, ground, vpart_ladder_internal ) >= 0 );
     // Connector present, but (2,-2,1) has no boardable part -> no traversal.
     CHECK_FALSE( veh->allows_deck_traversal( ground, 1 ) );
+}
+
+TEST_CASE( "try_vehicle_deck_move_climbs_between_decks", "[vehicle][multifloor]" )
+{
+    clear_map();
+    clear_avatar();
+    map &here = get_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+
+    avatar &u = get_avatar();
+    // Stand the avatar on the ground connector tile (0,0,0) of the bus and board.
+    const tripoint_bub_ms connector_pos = veh->bub_part_pos( here,
+                                          veh->part( veh->part_with_feature(
+                                                  tripoint_rel_ms( 0, 0, 0 ), "VERTICAL_CONNECTOR", false ) ) );
+    u.setpos( here, connector_pos );
+    here.board_vehicle( connector_pos, &u );
+    REQUIRE( u.in_vehicle );
+    REQUIRE( u.posz() == 0 );
+
+    // Climb up: executor handles it and reports true.
+    CHECK( g->try_vehicle_deck_move( 1 ) );
+    CHECK( u.posz() == 1 );
+    CHECK( u.pos_bub().xy() == connector_pos.xy() );
+    CHECK( u.in_vehicle );
+
+    // Climb back down.
+    CHECK( g->try_vehicle_deck_move( -1 ) );
+    CHECK( u.posz() == 0 );
+    CHECK( u.in_vehicle );
+}
+
+TEST_CASE( "try_vehicle_deck_move_declines_without_connector", "[vehicle][multifloor]" )
+{
+    clear_map();
+    clear_avatar();
+    map &here = get_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+
+    avatar &u = get_avatar();
+    // Ground seat tile (0,1,0): boardable but no connector -> executor must decline (return false)
+    // so the normal terrain-based vertical_move logic runs instead.
+    const tripoint_bub_ms seat_pos = veh->bub_part_pos( here,
+                                     veh->part( veh->part_with_feature(
+                                             tripoint_rel_ms( 0, 1, 0 ), "SEAT", false ) ) );
+    u.setpos( here, seat_pos );
+    here.board_vehicle( seat_pos, &u );
+    REQUIRE( u.posz() == 0 );
+
+    CHECK_FALSE( g->try_vehicle_deck_move( 1 ) );
+    CHECK( u.posz() == 0 );
+}
+
+TEST_CASE( "try_vehicle_deck_move_declines_off_vehicle", "[vehicle][multifloor]" )
+{
+    clear_map();
+    clear_avatar();
+    // No vehicle at the avatar's tile at all: executor declines, no crash.
+    CHECK_FALSE( g->try_vehicle_deck_move( 1 ) );
+    CHECK_FALSE( g->try_vehicle_deck_move( -1 ) );
 }
