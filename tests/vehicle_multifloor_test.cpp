@@ -1,12 +1,21 @@
+#include "avatar.h"
 #include "cata_catch.h"
+#include "creature_tracker.h"
+#include "damage.h"
+#include "game.h"
 #include "map.h"
 #include "map_helpers.h"
+#include "monster.h"
+#include "mtype.h"
+#include "player_helpers.h"
 #include "vehicle.h"
 #include "veh_type.h"
 #include "type_id.h"
 #include "coordinates.h"
 
 static const vproto_id vehicle_prototype_car( "car" );
+static const damage_type_id damage_bash( "bash" );
+static const mtype_id mon_zombie( "mon_zombie" );
 
 TEST_CASE( "vehicle_prototype_parts_default_to_z_zero", "[vehicle][multifloor]" )
 {
@@ -293,4 +302,226 @@ TEST_CASE( "part_displayed_at_resolves_per_deck", "[vehicle][multifloor]" )
     REQUIRE( upper >= 0 );
     CHECK( ground != upper );
     CHECK( veh->part( upper ).mount.z() == 1 );
+}
+
+TEST_CASE( "allows_deck_traversal_up_from_connector", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    // Standing on the connector at (0,0,0), climbing up to the boardable deck floor at (0,0,1).
+    CHECK( veh->allows_deck_traversal( tripoint_rel_ms( 0, 0, 0 ), 1 ) );
+    // From the upper landing (0,0,1), climbing back down to (0,0,0): connector is on the tile below.
+    CHECK( veh->allows_deck_traversal( tripoint_rel_ms( 0, 0, 1 ), -1 ) );
+}
+
+TEST_CASE( "allows_deck_traversal_rejects_non_connector_and_bad_dz", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    // (0,1,0) is a plain seat tile with no connector: no vertical travel either way.
+    CHECK_FALSE( veh->allows_deck_traversal( tripoint_rel_ms( 0, 1, 0 ), 1 ) );
+    CHECK_FALSE( veh->allows_deck_traversal( tripoint_rel_ms( 0, 1, 1 ), -1 ) );
+    // dz other than +/-1 is never a deck move (defends the early branch in vertical_move).
+    CHECK_FALSE( veh->allows_deck_traversal( tripoint_rel_ms( 0, 0, 0 ), 2 ) );
+    CHECK_FALSE( veh->allows_deck_traversal( tripoint_rel_ms( 0, 0, 0 ), 0 ) );
+}
+
+TEST_CASE( "allows_deck_traversal_requires_floor_at_destination", "[vehicle][multifloor]" )
+{
+    // A lone connector with nothing built above must not let you climb into empty air.
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms( 60, 60, 0 ),
+                                     0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    // Extend the car by a ground tile carrying a connector, but build nothing on z=1 above it.
+    const tripoint_rel_ms ground( 2, -2, 0 );
+    REQUIRE( veh->install_part( here, ground, vpart_frame ) >= 0 );
+    REQUIRE( veh->install_part( here, ground, vpart_ladder_internal ) >= 0 );
+    // Connector present, but (2,-2,1) has no boardable part -> no traversal.
+    CHECK_FALSE( veh->allows_deck_traversal( ground, 1 ) );
+}
+
+TEST_CASE( "try_vehicle_deck_move_climbs_between_decks", "[vehicle][multifloor]" )
+{
+    clear_map();
+    clear_avatar();
+    map &here = get_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+
+    avatar &u = get_avatar();
+    // Stand the avatar on the ground connector tile (0,0,0) of the bus and board.
+    const tripoint_bub_ms connector_pos = veh->bub_part_pos( here,
+                                          veh->part( veh->part_with_feature(
+                                                  tripoint_rel_ms( 0, 0, 0 ), "VERTICAL_CONNECTOR", false ) ) );
+    u.setpos( here, connector_pos );
+    here.board_vehicle( connector_pos, &u );
+    REQUIRE( u.in_vehicle );
+    REQUIRE( u.posz() == 0 );
+
+    // Climb up: executor handles it and reports true.
+    CHECK( g->try_vehicle_deck_move( 1 ) );
+    CHECK( u.posz() == 1 );
+    CHECK( u.pos_bub().xy() == connector_pos.xy() );
+    CHECK( u.in_vehicle );
+
+    // Climb back down.
+    CHECK( g->try_vehicle_deck_move( -1 ) );
+    CHECK( u.posz() == 0 );
+    CHECK( u.in_vehicle );
+}
+
+TEST_CASE( "try_vehicle_deck_move_declines_without_connector", "[vehicle][multifloor]" )
+{
+    clear_map();
+    clear_avatar();
+    map &here = get_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+
+    avatar &u = get_avatar();
+    // Ground seat tile (0,1,0): boardable but no connector -> executor must decline (return false)
+    // so the normal terrain-based vertical_move logic runs instead.
+    const tripoint_bub_ms seat_pos = veh->bub_part_pos( here,
+                                     veh->part( veh->part_with_feature(
+                                             tripoint_rel_ms( 0, 1, 0 ), "SEAT", false ) ) );
+    u.setpos( here, seat_pos );
+    here.board_vehicle( seat_pos, &u );
+    REQUIRE( u.posz() == 0 );
+
+    CHECK_FALSE( g->try_vehicle_deck_move( 1 ) );
+    CHECK( u.posz() == 0 );
+}
+
+TEST_CASE( "try_vehicle_deck_move_declines_off_vehicle", "[vehicle][multifloor]" )
+{
+    clear_map();
+    clear_avatar();
+    // No vehicle at the avatar's tile at all: executor declines, no crash.
+    CHECK_FALSE( g->try_vehicle_deck_move( 1 ) );
+    CHECK_FALSE( g->try_vehicle_deck_move( -1 ) );
+}
+
+TEST_CASE( "destroying_upper_floor_drops_the_rider", "[vehicle][multifloor]" )
+{
+    clear_map();
+    clear_creatures();
+    clear_avatar();
+    map &here = get_map();
+    // A prior test may have left the avatar parked on the bus origin tile; clear_avatar
+    // resets stats but not position, so move it well clear of the spawn tiles.
+    get_avatar().setpos( here, tripoint_bub_ms{ 0, 0, -2 } );
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+
+    // The upper cargo/floor tile (1,0,1) sits over open air terrain at z=1.
+    const int floor_idx = veh->part_with_feature( tripoint_rel_ms( 1, 0, 1 ), "BOARDABLE", false );
+    REQUIRE( floor_idx >= 0 );
+    const tripoint_bub_ms floor_pos = veh->bub_part_pos( here, veh->part( floor_idx ) );
+    REQUIRE( floor_pos.z() == 1 );
+    REQUIRE( here.is_open_air( floor_pos ) ); // terrain beneath the deck is open air
+
+    // Put a zombie on that upper-deck floor. With the floor intact it must NOT fall.
+    monster &zed = spawn_test_monster( "mon_zombie", floor_pos );
+    zed.gravity_check( &here );
+    REQUIRE( zed.pos_bub( here ) == floor_pos );
+
+    // Destroy the whole upper floor tile, then let break_off run its recheck.
+    // vehicle::damage_direct/break_off are private, so we go through the public
+    // vehicle::damage() entry point; it spreads damage randomly across all parts
+    // sharing the target's mount, and a part only tears off (break_off) once broken.
+    // NOTE: valid_move refuses to drop a creature while ANY vehicle part still
+    // occupies the tile -- a bare structural frame is a legitimate standing surface
+    // even after the BOARDABLE deck floor is gone. So the rider only falls once the
+    // tile is entirely vehicle-free. Hammer the mount's structural frame with massive
+    // damage until break_off's structural branch clears every part on that mount
+    // (the frame's removal cascades to the deck floor and cargo on the same tile).
+    for( int i = 0; i < 500; ++i ) {
+        const int idx = structure_part_at( *veh, tripoint_rel_ms( 1, 0, 1 ) );
+        if( idx < 0 ) {
+            break;
+        }
+        veh->damage( here, idx, 100000, damage_bash );
+    }
+    REQUIRE( veh->parts_at_relative( tripoint_rel_ms( 1, 0, 1 ), false ).empty() );
+
+    // The tile is now open air with no vehicle floor, so the recheck must have
+    // dropped the zombie off z=1.
+    monster *still = get_creature_tracker().creature_at<monster>( floor_pos );
+    CHECK( still == nullptr );
+}
+
+TEST_CASE( "destroying_ground_part_does_not_drop_rider", "[vehicle][multifloor]" )
+{
+    clear_map();
+    clear_creatures();
+    clear_avatar();
+    map &here = get_map();
+    // clear_avatar resets stats but not position; move the avatar clear of the spawn tile.
+    get_avatar().setpos( here, tripoint_bub_ms{ 0, 0, -2 } );
+    vehicle *veh = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms( 60, 60, 0 ),
+                                     0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    const int seat = veh->part_with_feature( tripoint_rel_ms( 0, 0, 0 ), "BOARDABLE", false );
+    REQUIRE( seat >= 0 );
+    const tripoint_bub_ms seat_pos = veh->bub_part_pos( here, veh->part( seat ) );
+    REQUIRE_FALSE( here.is_open_air( seat_pos ) );
+    monster &zed = spawn_test_monster( "mon_zombie", seat_pos );
+    here.vehicle_floor_removed_recheck( seat_pos );      // direct call: must be a no-op on solid ground
+    CHECK( zed.pos_bub( here ) == seat_pos );
+}
+
+TEST_CASE( "avatar_boards_upper_deck_seat", "[vehicle][multifloor]" )
+{
+    clear_map();
+    clear_avatar();
+    map &here = get_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+
+    avatar &u = get_avatar();
+    // Reach the upper deck the way gameplay does. A bare setpos to a z=1 tile cannot be
+    // boarded reliably in a test: board_vehicle's trailing update_map() re-centres the
+    // reality bubble on the argless Character::pos_bub(), which only the bubble-shifting
+    // vertical_move path refreshes -- so a directly-placed avatar gets pulled back to z=0.
+    // Climbing through the connector (Task 2's try_vehicle_deck_move) performs that shift,
+    // building the z=1 caches and refreshing the cached position, exactly as real play.
+    const int connector = veh->part_with_feature( tripoint_rel_ms( 0, 0, 0 ),
+                          "VERTICAL_CONNECTOR", false );
+    REQUIRE( connector >= 0 );
+    const tripoint_bub_ms connector_pos = veh->bub_part_pos( here, veh->part( connector ) );
+    u.setpos( here, connector_pos );
+    here.board_vehicle( connector_pos, &u );
+    REQUIRE( u.in_vehicle );
+    REQUIRE( u.pos_bub( here ).z() == 0 );
+
+    REQUIRE( g->try_vehicle_deck_move( 1 ) );
+    REQUIRE( u.pos_bub( here ).z() == 1 );
+
+    // Now step onto the adjacent upper-deck seat (0,1,1) and board it. The bubble is at
+    // z=1 now, so boarding behaves as in play.
+    const int seat = veh->part_with_feature( tripoint_rel_ms( 0, 1, 1 ), "SEAT", false );
+    REQUIRE( seat >= 0 );
+    const tripoint_bub_ms seat_pos = veh->bub_part_pos( here, veh->part( seat ) );
+    REQUIRE( seat_pos.z() == 1 );
+    here.unboard_vehicle( u.pos_bub( here ) );
+    u.setpos( here, seat_pos );
+    here.board_vehicle( seat_pos, &u );
+    CHECK( u.in_vehicle );
+    CHECK( u.pos_bub( here ).z() == 1 );
+    // The boarded part the map resolves for us is the upper-deck seat, not a ground part.
+    const optional_vpart_position vp = here.veh_at( u.pos_bub( here ) );
+    REQUIRE( vp );
+    CHECK( vp->part_with_feature( "SEAT", false ).has_value() );
 }

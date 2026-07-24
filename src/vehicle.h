@@ -1317,6 +1317,12 @@ class vehicle
         *  @returns part index or -1
         */
         int avail_part_with_feature( int p, vpart_bitflags f ) const;
+        // True iff a character standing on `from_mount` may climb by `dz` (+/-1 only)
+        // to the tile directly above/below: the vertical edge must be gated by a
+        // VERTICAL_CONNECTOR (up: connector on `from_mount`; down: connector on the
+        // tile below -- same rule as connected_neighbours()), and the destination
+        // mount must carry a BOARDABLE part to stand on. Pure; no state change.
+        bool allows_deck_traversal( const tripoint_rel_ms &from_mount, int dz ) const;
         /**
         *  Returns index of part at mount point \p pt which has link connection
         *  and is_available(), or -1 if no such part or it's not is_available()

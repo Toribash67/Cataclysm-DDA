@@ -1288,6 +1288,27 @@ std::vector<tripoint_rel_ms> vehicle::connected_neighbours( const tripoint_rel_m
     return neighbours;
 }
 
+bool vehicle::allows_deck_traversal( const tripoint_rel_ms &from_mount, int dz ) const
+{
+    if( dz != 1 && dz != -1 ) {
+        return false;
+    }
+    // Connector gates the vertical edge, same asymmetry as connected_neighbours():
+    // climbing up needs a connector on `from_mount`; climbing down needs one on
+    // the lower tile (from_mount below).
+    const bool gated = dz == 1
+                       ? has_vertical_connector_at( from_mount )
+                       : has_vertical_connector_at( from_mount + tripoint_rel_ms::below );
+    if( !gated ) {
+        return false;
+    }
+    // The destination must be a floor you can stand on. unbroken=false is intentional:
+    // a broken deck floor still counts as a landing, consistent with the connector
+    // gate above (has_vertical_connector_at() likewise does not check is_broken()).
+    const tripoint_rel_ms dest = from_mount + tripoint_rel_ms( 0, 0, dz );
+    return part_with_feature( dest, VPFLAG_BOARDABLE, false ) >= 0;
+}
+
 /**
  * Returns whether or not the vehicle has a structural part queued for removal,
  * @return true if a structural is queue for removal, false if not.
@@ -8028,6 +8049,8 @@ int vehicle::break_off( map &here, vehicle_part &vp, int dmg )
         }
     }
 
+    // If we just tore out a floor from under someone, make them fall (M4).
+    here.vehicle_floor_removed_recheck( pos );
     return dmg;
 }
 

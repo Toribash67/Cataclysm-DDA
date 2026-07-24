@@ -12288,6 +12288,51 @@ static std::optional<tripoint_bub_ms> find_empty_spot_nearby( const tripoint_bub
     return std::nullopt;
 }
 
+bool game::try_vehicle_deck_move( int movez )
+{
+    if( movez != 1 && movez != -1 ) {
+        return false;
+    }
+    map &here = get_map();
+    const tripoint_bub_ms pos = u.pos_bub( here );
+    const optional_vpart_position vp = here.veh_at( pos );
+    if( !vp ) {
+        return false;
+    }
+    vehicle &veh = vp->vehicle();
+    // The full 3D mount of the part we're standing on. mount_pos() is 2D and would
+    // drop the z, collapsing an upper-deck tile onto the ground deck -- use .mount.
+    const tripoint_rel_ms from_mount = veh.part( vp->part_index() ).mount;
+    if( !veh.allows_deck_traversal( from_mount, movez ) ) {
+        return false;
+    }
+
+    const int z_after = here.get_abs_sub().z() + movez;
+    if( z_after < -OVERMAP_DEPTH || z_after > OVERMAP_HEIGHT ) {
+        return false;
+    }
+
+    // Re-board on the destination deck: drop the old passenger slot first, shift the
+    // reality bubble's active z (keeps x/y; moves the avatar's abs pos to z_after),
+    // realign submaps, then board the vehicle tile now under us.
+    here.unboard_vehicle( pos );
+    const bool z_changed = vertical_shift( z_after );
+    const point_rel_sm submap_shift = update_map( u.pos_bub( here ).x(), u.pos_bub( here ).y(),
+                                      z_changed );
+    static_cast<void>( submap_shift );
+
+    const tripoint_bub_ms dest = u.pos_bub( here );
+    if( here.veh_at( dest ) ) {
+        here.board_vehicle( dest, &u );
+    }
+
+    u.mod_moves( -100 );
+    here.invalidate_map_cache( here.get_abs_sub().z() );
+    here.build_map_cache( here.get_abs_sub().z() );
+    u.gravity_check();
+    return true;
+}
+
 void game::vertical_move( int movez, bool force, bool peeking )
 {
     if( u.has_flag( json_flag_CANNOT_MOVE ) ) {
@@ -12307,6 +12352,13 @@ void game::vertical_move( int movez, bool force, bool peeking )
 
     map &here = get_map();
     tripoint_bub_ms pos = u.pos_bub( here );
+
+    // Multi-floor vehicles: a deck-to-deck climb through a VERTICAL_CONNECTOR is
+    // recognized here because vertical_move's terrain checks (GOES_UP/DOWN, stairs)
+    // do not see vehicle parts. If this handles the move, we are done.
+    if( !force && !peeking && !u.is_underwater() && try_vehicle_deck_move( movez ) ) {
+        return;
+    }
 
     // Force means we're going down, even if there's no staircase, etc.
     bool climbing = false;
