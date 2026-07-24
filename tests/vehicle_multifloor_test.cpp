@@ -294,3 +294,47 @@ TEST_CASE( "part_displayed_at_resolves_per_deck", "[vehicle][multifloor]" )
     CHECK( ground != upper );
     CHECK( veh->part( upper ).mount.z() == 1 );
 }
+
+TEST_CASE( "allows_deck_traversal_up_from_connector", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    // Standing on the connector at (0,0,0), climbing up to the boardable deck floor at (0,0,1).
+    CHECK( veh->allows_deck_traversal( tripoint_rel_ms( 0, 0, 0 ), 1 ) );
+    // From the upper landing (0,0,1), climbing back down to (0,0,0): connector is on the tile below.
+    CHECK( veh->allows_deck_traversal( tripoint_rel_ms( 0, 0, 1 ), -1 ) );
+}
+
+TEST_CASE( "allows_deck_traversal_rejects_non_connector_and_bad_dz", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    // (0,1,0) is a plain seat tile with no connector: no vertical travel either way.
+    CHECK_FALSE( veh->allows_deck_traversal( tripoint_rel_ms( 0, 1, 0 ), 1 ) );
+    CHECK_FALSE( veh->allows_deck_traversal( tripoint_rel_ms( 0, 1, 1 ), -1 ) );
+    // dz other than +/-1 is never a deck move (defends the early branch in vertical_move).
+    CHECK_FALSE( veh->allows_deck_traversal( tripoint_rel_ms( 0, 0, 0 ), 2 ) );
+    CHECK_FALSE( veh->allows_deck_traversal( tripoint_rel_ms( 0, 0, 0 ), 0 ) );
+}
+
+TEST_CASE( "allows_deck_traversal_requires_floor_at_destination", "[vehicle][multifloor]" )
+{
+    // A lone connector with nothing built above must not let you climb into empty air.
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms( 60, 60, 0 ),
+                                     0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    // Extend the car by a ground tile carrying a connector, but build nothing on z=1 above it.
+    const tripoint_rel_ms ground( 2, -2, 0 );
+    REQUIRE( veh->install_part( here, ground, vpart_frame ) >= 0 );
+    REQUIRE( veh->install_part( here, ground, vpart_ladder_internal ) >= 0 );
+    // Connector present, but (2,-2,1) has no boardable part -> no traversal.
+    CHECK_FALSE( veh->allows_deck_traversal( ground, 1 ) );
+}
