@@ -1459,6 +1459,11 @@ void map::unboard_vehicle( const tripoint_bub_ms &p, bool dead_passenger )
 
 void map::vehicle_floor_removed_recheck( const tripoint_bub_ms &p )
 {
+    // Assumes `this` is the reality bubble: the creature tracker is global and resolves
+    // `p` against it. Every gameplay path into vehicle::break_off (which is our only
+    // caller) runs on the reality bubble; mapgen damages parts via vehicle::smash, which
+    // never reaches break_off. If break_off ever runs on a non-bubble map, thread `this`
+    // through the creature lookup.
     Creature *c = get_creature_tracker().creature_at( p, true );
     if( c == nullptr ) {
         return;
