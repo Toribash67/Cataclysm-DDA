@@ -10,8 +10,8 @@
 
 ## Global Constraints
 
-- **Build (curses, fast dev loop):** `.nas-build/cdda.sh build` — compiles `tests/cata_test`, validates all JSON.
-- **Single test while iterating:** `.nas-build/cdda.sh test "<case name>"` (Catch2 name or `[tag]`). Fine for one case.
+- **Build (curses, fast dev loop):** `.nas-build/cdda.sh build` — compiles `tests/cata_test`, validates all JSON. **`test` does NOT build** — it just execs the existing `tests/cata_test` binary. So the mandatory sequence for any code change is `.nas-build/cdda.sh build && .nas-build/cdda.sh test "<name>"`. Running `test` alone silently runs a STALE binary and can report a false green — always `build` first.
+- **Single test while iterating:** after a successful `build`, `.nas-build/cdda.sh test "<case name>"` (Catch2 name or `[tag]`). Fine for one case.
 - **Full isolated suite (the milestone gate):** `.nas-build/cdda.sh suite` — never a single `cata_test` call for the whole suite (some `[monster]` tests cross-contaminate in one process; the harness runs `gha_test_only.sh`, `--order lex`, isolated batches).
 - **Tiles build (CI mirror, final gate only):** `.nas-build/cdda.sh build-tiles`. M4 adds no rendering code, but the final task must confirm tiles still links because CI builds tiles.
 - **Single-floor no-op is sacred:** every shipped vehicle omits `z`, so all their parts sit at `mount.z == 0`. No change in this milestone may alter behavior for a single-deck vehicle. Where a code path is z-gated, the `z == 0` / no-connector case must behave byte-identically to today. Add a single-floor regression assertion whenever you add a two-floor one.
