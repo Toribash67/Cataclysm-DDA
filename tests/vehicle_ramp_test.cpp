@@ -27,6 +27,8 @@
 
 static const mtype_id pseudo_debug_mon( "pseudo_debug_mon" );
 
+static const vproto_id vehicle_prototype_test_bus_2floor( "test_bus_2floor" );
+
 static void clear_game_and_set_ramp( const int transit_x, bool use_ramp, bool up )
 {
     // Set to turn 0 to prevent solars from producing power
@@ -77,6 +79,60 @@ static void clear_game_and_set_ramp( const int transit_x, bool use_ramp, bool up
     }
     here.invalidate_map_cache( 0 );
     here.build_map_cache( 0, true );
+}
+
+// M5 Task 4: flat driving, easy case first. Confirms the two-floor bus drives
+// under its own power on flat pavement without splitting, skidding, or losing
+// velocity, and that the upper deck stays exactly one z above the lower deck
+// at every tick (composition of precalc.z = mount.z + precalc_z_delta holds
+// with no ramp displacement in play).
+TEST_CASE( "two_floor_bus_drives_flat_keeping_deck_stack", "[vehicle][multifloor][ramp]" )
+{
+    map &here = get_map();
+    clear_game_and_set_ramp( 75, /*use_ramp=*/false, /*up=*/false ); // flat pavement field
+
+    const tripoint_bub_ms start( 79, 60, 0 );
+    REQUIRE( here.ter( start ) == ter_id( "t_pavement" ) );
+    vehicle *veh_ptr = here.add_vehicle( vehicle_prototype_test_bus_2floor, start, 180_degrees, 1, 0 );
+    REQUIRE( veh_ptr != nullptr );
+    vehicle &veh = *veh_ptr;
+    veh.check_falling_or_floating();
+    REQUIRE_FALSE( veh.is_in_water() );
+
+    veh.tags.insert( "IN_CONTROL_OVERRIDE" );
+    veh.engine_on = true;
+    const int target_velocity = 400;
+    veh.cruise_velocity = target_velocity;
+    veh.velocity = target_velocity;
+    REQUIRE( veh.safe_velocity( here ) > 0 );
+
+    const size_t parts_before = veh.part_count();
+
+    for( int cycle = 0; cycle < 8; cycle++ ) {
+        CAPTURE( cycle );
+        here.vehmove();
+        REQUIRE_FALSE( veh.skidding );
+        CHECK( veh.velocity == target_velocity );
+        // the vehicle stays whole (no spurious split while driving)
+        CHECK( veh.part_count() == parts_before );
+        // every upper-deck part is exactly one z above its lower-deck column partner,
+        // and all lower-deck structure stays at the vehicle's own z-level.
+        for( const vpart_reference &up : veh.get_all_parts() ) {
+            const vehicle_part &pu = up.part();
+            if( pu.removed || pu.is_fake || pu.mount.z() != 1 ) {
+                continue;
+            }
+            for( const vpart_reference &lo : veh.get_all_parts() ) {
+                const vehicle_part &pl = lo.part();
+                if( pl.removed || pl.is_fake || pl.mount.z() != 0 ||
+                    pl.mount.xy() != pu.mount.xy() ) {
+                    continue;
+                }
+                CAPTURE( pu.mount.xy() );
+                CHECK( pu.precalc[0].z() == pl.precalc[0].z() + 1 );
+            }
+        }
+    }
 }
 
 // Algorithm goes as follows:
