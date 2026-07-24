@@ -573,3 +573,18 @@ TEST_CASE( "two_floor_bus_upper_deck_collides_horizontally", "[vehicle][multiflo
                                false, false, false );
     CHECK( coll.type != veh_coll_nothing );
 }
+
+TEST_CASE( "wheels_touch_ground_only_on_deck_zero", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 100, 0 );
+    REQUIRE( veh != nullptr );
+
+    REQUIRE_FALSE( veh->wheelcache.empty() );
+    for( const int w : veh->wheelcache ) {
+        CAPTURE( w );
+        CHECK( veh->part( w ).mount.z() == 0 );
+    }
+}
