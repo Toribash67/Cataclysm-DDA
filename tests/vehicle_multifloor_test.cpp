@@ -480,3 +480,48 @@ TEST_CASE( "destroying_ground_part_does_not_drop_rider", "[vehicle][multifloor]"
     here.vehicle_floor_removed_recheck( seat_pos );      // direct call: must be a no-op on solid ground
     CHECK( zed.pos_bub( here ) == seat_pos );
 }
+
+TEST_CASE( "avatar_boards_upper_deck_seat", "[vehicle][multifloor]" )
+{
+    clear_map();
+    clear_avatar();
+    map &here = get_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+
+    avatar &u = get_avatar();
+    // Reach the upper deck the way gameplay does. A bare setpos to a z=1 tile cannot be
+    // boarded reliably in a test: board_vehicle's trailing update_map() re-centres the
+    // reality bubble on the argless Character::pos_bub(), which only the bubble-shifting
+    // vertical_move path refreshes -- so a directly-placed avatar gets pulled back to z=0.
+    // Climbing through the connector (Task 2's try_vehicle_deck_move) performs that shift,
+    // building the z=1 caches and refreshing the cached position, exactly as real play.
+    const int connector = veh->part_with_feature( tripoint_rel_ms( 0, 0, 0 ),
+                          "VERTICAL_CONNECTOR", false );
+    REQUIRE( connector >= 0 );
+    const tripoint_bub_ms connector_pos = veh->bub_part_pos( here, veh->part( connector ) );
+    u.setpos( here, connector_pos );
+    here.board_vehicle( connector_pos, &u );
+    REQUIRE( u.in_vehicle );
+    REQUIRE( u.pos_bub( here ).z() == 0 );
+
+    REQUIRE( g->try_vehicle_deck_move( 1 ) );
+    REQUIRE( u.pos_bub( here ).z() == 1 );
+
+    // Now step onto the adjacent upper-deck seat (0,1,1) and board it. The bubble is at
+    // z=1 now, so boarding behaves as in play.
+    const int seat = veh->part_with_feature( tripoint_rel_ms( 0, 1, 1 ), "SEAT", false );
+    REQUIRE( seat >= 0 );
+    const tripoint_bub_ms seat_pos = veh->bub_part_pos( here, veh->part( seat ) );
+    REQUIRE( seat_pos.z() == 1 );
+    here.unboard_vehicle( u.pos_bub( here ) );
+    u.setpos( here, seat_pos );
+    here.board_vehicle( seat_pos, &u );
+    CHECK( u.in_vehicle );
+    CHECK( u.pos_bub( here ).z() == 1 );
+    // The boarded part the map resolves for us is the upper-deck seat, not a ground part.
+    const optional_vpart_position vp = here.veh_at( u.pos_bub( here ) );
+    REQUIRE( vp );
+    CHECK( vp->part_with_feature( "SEAT", false ).has_value() );
+}
