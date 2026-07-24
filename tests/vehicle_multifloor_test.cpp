@@ -525,3 +525,51 @@ TEST_CASE( "avatar_boards_upper_deck_seat", "[vehicle][multifloor]" )
     REQUIRE( vp );
     CHECK( vp->part_with_feature( "SEAT", false ).has_value() );
 }
+
+TEST_CASE( "two_floor_bus_upper_deck_collides_horizontally", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map(); // z-levels 0 and 1 present in the bubble
+
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 100, 0 );
+    REQUIRE( veh != nullptr );
+    veh->check_falling_or_floating();
+    REQUIRE_FALSE( veh->is_in_water() );
+
+    // Pick the front-most (max abs x) upper-deck (mount.z == 1) structural part; the tile one
+    // step ahead (+x) of it at the upper deck's own z-level is outside our footprint, so a wall
+    // there is an obstacle only the upper deck can hit.
+    int upper_idx = -1;
+    tripoint_bub_ms upper_bub;
+    for( const vpart_reference &vp : veh->get_all_parts() ) {
+        if( vp.part().removed || vp.part().is_fake ) {
+            continue;
+        }
+        if( vp.info().location != "structure" || vp.part().mount.z() != 1 ) {
+            continue;
+        }
+        const tripoint_bub_ms p = vp.pos_bub( here );
+        if( upper_idx < 0 || p.x() > upper_bub.x() ) {
+            upper_idx = vp.part_index();
+            upper_bub = p;
+        }
+    }
+    REQUIRE( upper_idx >= 0 );
+    REQUIRE( upper_bub.z() == 1 ); // the upper deck really is one z above the vehicle's base
+
+    const tripoint_bub_ms wall_bub = upper_bub + tripoint_rel_ms( 1, 0, 0 );
+    here.ter_set( wall_bub, ter_id( "t_wall" ) );
+    REQUIRE( here.impassable( wall_bub ) );
+
+    // Ask part_collision (the same entry teleport uses) to resolve that upper-deck part moving
+    // horizontally into the wall tile. `vertical == false` is the truth for a horizontal move.
+    // Pre-fix, part_collision ignored the caller and derived verticality from the part's absolute
+    // z (z=1 != vehicle z=0 -> "vertical"), read vertical_velocity (0), and early-returned nothing
+    // -> the deck phased through. The fix honours the passed move direction, so this is a real hit.
+    veh->velocity = 400;
+    veh->vertical_velocity = 0;
+    const veh_collision coll = veh->part_collision( here, upper_idx, here.get_abs( wall_bub ),
+                               false, false, false );
+    CHECK( coll.type != veh_coll_nothing );
+}
