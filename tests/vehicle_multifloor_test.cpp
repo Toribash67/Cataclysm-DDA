@@ -41,15 +41,15 @@ TEST_CASE( "vehicle_install_part_accepts_tripoint_mount", "[vehicle][multifloor]
 
 static const vpart_id vpart_ladder_internal( "ladder_internal" );
 
-TEST_CASE( "vertical_connector_flag_is_recognized", "[vehicle][multifloor]" )
+TEST_CASE( "vertical_traversal_flag_is_recognized", "[vehicle][multifloor]" )
 {
     // The flag must resolve through the fast-path enum, not just the string set.
-    CHECK( vpart_ladder_internal.obj().has_flag( VPFLAG_VERTICAL_CONNECTOR ) );
+    CHECK( vpart_ladder_internal.obj().has_flag( VPFLAG_VERTICAL_TRAVERSAL ) );
 }
 
 static const vpart_id vpart_frame( "frame" );
 
-TEST_CASE( "upper_deck_mount_requires_vertical_connector", "[vehicle][multifloor]" )
+TEST_CASE( "upper_deck_frame_supported_by_frame_below", "[vehicle][multifloor]" )
 {
     map &here = get_map();
     clear_map();
@@ -57,49 +57,52 @@ TEST_CASE( "upper_deck_mount_requires_vertical_connector", "[vehicle][multifloor
                                      0_degrees, 0, 0 );
     REQUIRE( veh != nullptr );
 
-    const vpart_info &floor = vpart_id( "hdframe" ).obj();
+    const vpart_info &hdframe = vpart_id( "hdframe" ).obj();
 
-    // Cheap check: (0, 0, 1) is simply empty, so plain planar adjacency alone
-    // already rejects it. This alone would still pass with the connector gate
-    // deleted, so it does not prove anything about the gate on its own.
-    const tripoint_rel_ms unsupported( 0, 0, 1 );
-    CHECK( !veh->can_mount( unsupported, floor ).success() );
+    // (-1, -2) is planar-adjacent to the car's real structure at (-1, -1) but is
+    // itself bare terrain -- unlike (0, 0), which the "car" prototype's own footprint
+    // already occupies with a structural frame. Before anything is installed on the
+    // ground tile below, nothing supports an upper-deck frame at (-1, -2, 1).
+    const tripoint_rel_ms above( -1, -2, 1 );
+    CHECK( !veh->can_mount( above, hdframe ).success() );
 
-    // The discriminating case: mirror upper_deck_mount_allowed_above_connector's
-    // setup exactly, but install a plain structural frame (NOT a vertical
-    // connector) on the new ground tile. (-1, -2) is a distinct tile from that
-    // test's (2, -2), planar-adjacent to the car's real structure at (-1, -1),
-    // so the frame installs there. Real structure directly below is present,
-    // but with no connector, z=1 above it must still be rejected -- proving
-    // it is specifically the connector, not "any part below," that legalizes
-    // an upper-deck mount.
+    // A plain structural frame on that new ground tile. A frame directly below now
+    // legalizes an upper-deck frame stacked on it -- no ladder/traversal part required.
     const tripoint_rel_ms ground( -1, -2, 0 );
     REQUIRE( veh->install_part( here, ground, vpart_frame ) >= 0 );
 
-    const tripoint_rel_ms above( -1, -2, 1 );
-    CHECK( !veh->can_mount( above, floor ).success() );
+    CHECK( veh->can_mount( above, hdframe ).success() );
 }
 
-TEST_CASE( "upper_deck_mount_allowed_above_connector", "[vehicle][multifloor]" )
+TEST_CASE( "upper_deck_nonframe_part_needs_no_frame_directly_below", "[vehicle][multifloor]" )
 {
+    // A non-frame upper-deck part (seat) mounts by planar adjacency to an existing
+    // upper-deck frame, with NO frame directly beneath the seat itself -- the vertical
+    // analog of the in-plane / external-attach rule. (Setup itself depends on the
+    // frame-below mount rule: installing the upper frame requires a frame below it.)
     map &here = get_map();
     clear_map();
     vehicle *veh = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms( 60, 60, 0 ),
                                      0_degrees, 0, 0 );
     REQUIRE( veh != nullptr );
 
-    // Every occupied tile in the stock "car" already carries a "center"-location
-    // part (seat/door/windshield/board/...), which would conflict with
-    // ladder_internal's own "center" location.  Extend the vehicle by one tile
-    // instead: (2, -2) is just outside the car's footprint but planar-adjacent
-    // to the real structural frame at (2, -1), so a plain frame can be mounted
-    // there, and the ladder can then be mounted on top of it.
     const tripoint_rel_ms ground( 2, -2, 0 );
     REQUIRE( veh->install_part( here, ground, vpart_frame ) >= 0 );
-    REQUIRE( veh->install_part( here, ground, vpart_ladder_internal ) >= 0 );
+    const tripoint_rel_ms upper_frame( 2, -2, 1 );
+    REQUIRE( veh->install_part( here, upper_frame, vpart_frame ) >= 0 );
 
-    const tripoint_rel_ms above( 2, -2, 1 );
-    CHECK( veh->can_mount( above, vpart_id( "hdframe" ).obj() ).success() );
+    // A frame one tile further out on the upper deck: planar-adjacent to upper_frame,
+    // but the tile directly beneath it (3,-2,0) is empty, so it is legalized purely by
+    // in-plane adjacency (supported_in_plane), not by anything below it.
+    const tripoint_rel_ms outer_frame_tile( 3, -2, 1 );
+    REQUIRE( veh->parts_at_relative( tripoint_rel_ms( 3, -2, 0 ), false ).empty() );
+    REQUIRE( veh->install_part( here, outer_frame_tile, vpart_frame ) >= 0 );
+
+    // A non-frame part (seat) can then attach on that same tile. It needs no frame-below
+    // check of its own -- can_mount's "first part on a tile must be structural" rule
+    // already guarantees a structural frame occupies the tile before any non-frame part
+    // can join it, so the seat rides on the frame's support, not on anything beneath it.
+    CHECK( veh->can_mount( outer_frame_tile, vpart_id( "seat" ).obj() ).success() );
 }
 
 static const vproto_id vehicle_prototype_test_bus_2floor( "test_bus_2floor" );
@@ -211,27 +214,12 @@ static int structure_part_at( const vehicle &veh, const tripoint_rel_ms &mount )
     return -1;
 }
 
-// NOTE on the "public can_unmount fallback" mentioned in the task brief:
-// can_unmount() short-circuits to success() immediately for any part whose
-// vpart_info::location isn't "structure" (see vehicle.cpp, "non-structure
-// parts don't have extra requirements"). ladder_internal's location is
-// "center", so `can_unmount(ladder_part, false)` trivially succeeds
-// regardless of the 3D BFS -- asserting `!can_unmount(ladder,...).success()`
-// fails even on a correct implementation (confirmed empirically: it fails
-// the same way both before and after the is_connected/can_unmount rewrite).
-// It is also not possible to remove the structure part co-located with the
-// connector directly: can_unmount() refuses to remove a structure part while
-// any other non-cable part (the connector itself) still occupies the same
-// tile ("Remove all other attached parts first"). So the discriminating
-// scenario is built one level removed from the connector: a second
-// upper-deck tile that reaches the rest of the vehicle ONLY by a planar hop
-// through the tile sitting directly above the connector. Removing that
-// bridge tile must be refused because doing so would strand the second
-// upper-deck tile -- exactly the "would split the vehicle" check that the
-// 3D-aware adjacency gather (can_unmount) and BFS (is_connected) exist to
-// catch. A 2D-only implementation projects everything to z==0 and instead
-// sees a phantom ground-layer neighbour, wrongly allowing the removal.
-TEST_CASE( "upper_deck_removal_blocked_when_only_link_is_connector", "[vehicle][multifloor]" )
+// A single stacked frame is the sole structural bridge to a second upper-deck tile.
+// Removing the bridge frame would strand that tile, so can_unmount must refuse it --
+// the 3D, frame-gated "would this split the vehicle?" check. A traversal-gated (pre-
+// change) connected_neighbours gives the bridge frame only its planar neighbour, sees
+// a removable end tile, and wrongly allows the removal.
+TEST_CASE( "upper_deck_removal_blocked_when_only_link_is_frame_bridge", "[vehicle][multifloor]" )
 {
     map &here = get_map();
     clear_map();
@@ -239,21 +227,22 @@ TEST_CASE( "upper_deck_removal_blocked_when_only_link_is_connector", "[vehicle][
                                      0_degrees, 0, 0 );
     REQUIRE( veh != nullptr );
 
-    // b0: ground bridge tile, planar-adjacent to the car's real structure,
-    // carrying the sole vertical connector up to the upper deck.
+    // b0: ground bridge frame, planar-adjacent to the car's real structure.
     const tripoint_rel_ms b0( 2, -2, 0 );
     REQUIRE( veh->install_part( here, b0, vpart_frame ) >= 0 );
-    REQUIRE( veh->install_part( here, b0, vpart_ladder_internal ) >= 0 );
 
-    // u0: upper-deck frame directly above the connector. Its only true 3D
-    // neighbours are b0 (down, through the connector) and u1 (planar, same z).
+    // u0: upper frame stacked on b0. Its 3D neighbours are b0 (down, through the frame)
+    // and u1 (planar, same z).
     const tripoint_rel_ms u0( 2, -2, 1 );
     REQUIRE( veh->install_part( here, u0, vpart_frame ) >= 0 );
 
-    // u1: a second upper-deck tile reachable from the rest of the vehicle
-    // ONLY through u0 -- there is no connector underneath u1.
+    // u1: a second upper-deck tile reachable from the rest of the vehicle ONLY through
+    // u0 -- there is no frame under u1 at (3,-2,0).
     const tripoint_rel_ms u1( 3, -2, 1 );
     REQUIRE( veh->install_part( here, u1, vpart_frame ) >= 0 );
+
+    // (3,-2,0) must be bare terrain for u1's "no frame below" premise to hold.
+    REQUIRE( veh->parts_at_relative( tripoint_rel_ms( 3, -2, 0 ), false ).empty() );
 
     const int idx_u0 = structure_part_at( *veh, u0 );
     REQUIRE( idx_u0 >= 0 );
@@ -261,7 +250,7 @@ TEST_CASE( "upper_deck_removal_blocked_when_only_link_is_connector", "[vehicle][
     CHECK( !veh->can_unmount( veh->part( idx_u0 ), false ).success() );
 }
 
-TEST_CASE( "removing_connector_splits_off_upper_deck", "[vehicle][multifloor]" )
+TEST_CASE( "removing_ladder_keeps_decks_connected", "[vehicle][multifloor]" )
 {
     map &here = get_map();
     clear_map();
@@ -269,10 +258,11 @@ TEST_CASE( "removing_connector_splits_off_upper_deck", "[vehicle][multifloor]" )
                                      tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
     REQUIRE( veh != nullptr );
     const int ladder = veh->part_with_feature( tripoint_rel_ms( 0, 0, 0 ),
-                       "VERTICAL_CONNECTOR", false );
+                       "VERTICAL_TRAVERSAL", false );
     REQUIRE( ladder >= 0 );
 
-    // Force the split: remove the only vertical link.
+    // Removing the climb affordance must NOT split the vehicle: the decks are held
+    // together structurally by the stacked frames, independent of traversal.
     veh->remove_part( veh->part( ladder ) );
     veh->find_and_split_vehicles( here, {} );
 
@@ -283,7 +273,7 @@ TEST_CASE( "removing_connector_splits_off_upper_deck", "[vehicle][multifloor]" )
             break;
         }
     }
-    CHECK_FALSE( still_has_upper );
+    CHECK( still_has_upper );
 }
 
 TEST_CASE( "part_displayed_at_resolves_per_deck", "[vehicle][multifloor]" )
@@ -361,7 +351,7 @@ TEST_CASE( "try_vehicle_deck_move_climbs_between_decks", "[vehicle][multifloor]"
     // Stand the avatar on the ground connector tile (0,0,0) of the bus and board.
     const tripoint_bub_ms connector_pos = veh->bub_part_pos( here,
                                           veh->part( veh->part_with_feature(
-                                                  tripoint_rel_ms( 0, 0, 0 ), "VERTICAL_CONNECTOR", false ) ) );
+                                                  tripoint_rel_ms( 0, 0, 0 ), "VERTICAL_TRAVERSAL", false ) ) );
     u.setpos( here, connector_pos );
     here.board_vehicle( connector_pos, &u );
     REQUIRE( u.in_vehicle );
@@ -498,7 +488,7 @@ TEST_CASE( "avatar_boards_upper_deck_seat", "[vehicle][multifloor]" )
     // Climbing through the connector (Task 2's try_vehicle_deck_move) performs that shift,
     // building the z=1 caches and refreshing the cached position, exactly as real play.
     const int connector = veh->part_with_feature( tripoint_rel_ms( 0, 0, 0 ),
-                          "VERTICAL_CONNECTOR", false );
+                          "VERTICAL_TRAVERSAL", false );
     REQUIRE( connector >= 0 );
     const tripoint_bub_ms connector_pos = veh->bub_part_pos( here, veh->part( connector ) );
     u.setpos( here, connector_pos );
@@ -692,4 +682,61 @@ TEST_CASE( "two_floor_bus_mass_center_is_planar", "[vehicle][multifloor]" )
     CHECK( com.x() <= 2 );
     CHECK( com.y() >= 0 );
     CHECK( com.y() <= 1 );
+}
+
+TEST_CASE( "frame_stacked_decks_connect_but_do_not_allow_climbing", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    const int ladder = veh->part_with_feature( tripoint_rel_ms( 0, 0, 0 ),
+                       "VERTICAL_TRAVERSAL", false );
+    REQUIRE( ladder >= 0 );
+    veh->remove_part( veh->part( ladder ) );
+    veh->find_and_split_vehicles( here, {} );
+
+    // Still one vehicle with an upper deck: frames connect the decks structurally...
+    bool still_has_upper = false;
+    for( const vpart_reference &vpr : veh->get_all_parts() ) {
+        if( !vpr.part().removed && vpr.part().mount.z() == 1 ) {
+            still_has_upper = true;
+            break;
+        }
+    }
+    REQUIRE( still_has_upper );
+
+    // ...but with the ladder gone there is no way to climb between the decks.
+    CHECK_FALSE( veh->allows_deck_traversal( tripoint_rel_ms( 0, 0, 0 ), 1 ) );
+    CHECK_FALSE( veh->allows_deck_traversal( tripoint_rel_ms( 0, 0, 1 ), -1 ) );
+}
+
+TEST_CASE( "removing_one_of_several_frame_bridges_does_not_split", "[vehicle][multifloor]" )
+{
+    // The bus stacks a frame on every upper tile, so the decks are connected at
+    // multiple points. Removing a single ground frame under one stack must not split
+    // the vehicle: the upper tile above it still reaches ground through neighbouring
+    // stacks.
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+
+    // Ground frame under the (1,1) stack; its upper (1,1,1) also neighbours upper
+    // frames at (1,0,1) and (0,1,1), which keep their own ground frames.
+    const int gi = structure_part_at( *veh, tripoint_rel_ms( 1, 1, 0 ) );
+    REQUIRE( gi >= 0 );
+    veh->remove_part( veh->part( gi ) );
+    veh->find_and_split_vehicles( here, {} );
+
+    int upper_tiles = 0;
+    for( const vpart_reference &vpr : veh->get_all_parts() ) {
+        if( !vpr.part().removed && vpr.part().mount.z() == 1 ) {
+            upper_tiles++;
+        }
+    }
+    // All four original upper tiles (0,0)/(0,1)/(1,0)/(1,1) remain on the one vehicle.
+    CHECK( upper_tiles >= 4 );
 }

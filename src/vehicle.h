@@ -828,12 +828,14 @@ class vehicle
         bool has_structural_part( const point &dp ) const;
         bool has_structural_part( const point_rel_ms &dp ) const;
         bool has_structural_part( const tripoint_rel_ms &dp ) const;
-        bool has_vertical_connector_at( const tripoint_rel_ms &dp ) const;
-        // Connector-gated adjacency of a mount: its four planar neighbours (same z),
-        // plus the tile above (iff a VERTICAL_CONNECTOR sits on this tile) and the
-        // tile below (iff a VERTICAL_CONNECTOR sits on that lower tile). A bare
+        bool has_traversal_part_at( const tripoint_rel_ms &dp ) const;
+        // Frame-gated adjacency of a mount: its four planar neighbours (same z), plus
+        // the tile above (iff this tile holds a structural frame) and the tile below
+        // (iff that lower tile holds a structural frame). Frames carry vertical
+        // structure the same way they carry planar structure; a bare non-frame
         // z-neighbour never connects. Single source of the deck-connectivity rule
-        // shared by is_connected / can_unmount / find_and_split_vehicles.
+        // shared by is_connected / can_unmount / find_and_split_vehicles. Traversal
+        // (climbing) is separate -- see allows_deck_traversal / VERTICAL_TRAVERSAL.
         std::vector<tripoint_rel_ms> connected_neighbours( const tripoint_rel_ms &mount ) const;
         bool is_structural_part_removed() const;
         void open_or_close( map &here, int part_index, bool opening );
@@ -1318,10 +1320,13 @@ class vehicle
         */
         int avail_part_with_feature( int p, vpart_bitflags f ) const;
         // True iff a character standing on `from_mount` may climb by `dz` (+/-1 only)
-        // to the tile directly above/below: the vertical edge must be gated by a
-        // VERTICAL_CONNECTOR (up: connector on `from_mount`; down: connector on the
-        // tile below -- same rule as connected_neighbours()), and the destination
-        // mount must carry a BOARDABLE part to stand on. Pure; no state change.
+        // to the tile directly above/below: the climb must be gated by a
+        // VERTICAL_TRAVERSAL part (up: traversal part on `from_mount`; down: traversal
+        // part on the tile below), and the destination mount must carry a BOARDABLE
+        // part to stand on. This gate is independent of connected_neighbours(): structural
+        // deck-to-deck connectivity is carried by frames, climbing by this flag -- the two
+        // deliberately diverge (a frame-stacked deck is one vehicle but not climbable).
+        // Pure; no state change.
         bool allows_deck_traversal( const tripoint_rel_ms &from_mount, int dz ) const;
         /**
         *  Returns index of part at mount point \p pt which has link connection

@@ -1255,12 +1255,12 @@ bool vehicle::has_structural_part( const tripoint_rel_ms &dp ) const
     return false;
 }
 
-bool vehicle::has_vertical_connector_at( const tripoint_rel_ms &dp ) const
+bool vehicle::has_traversal_part_at( const tripoint_rel_ms &dp ) const
 {
     for( const int elem : parts_at_relative( dp, false ) ) {
         const vehicle_part &vp = part( elem );
         const vpart_info &vpi = vp.info();
-        if( vpi.has_flag( VPFLAG_VERTICAL_CONNECTOR ) &&
+        if( vpi.has_flag( VPFLAG_VERTICAL_TRAVERSAL ) &&
             !vp.has_flag( vp_flag::carried_flag ) ) {
             return true;
         }
@@ -1275,14 +1275,15 @@ std::vector<tripoint_rel_ms> vehicle::connected_neighbours( const tripoint_rel_m
     for( const point &offset : four_adjacent_offsets ) {
         neighbours.emplace_back( mount + tripoint_rel_ms( offset.x, offset.y, 0 ) );
     }
-    // Vertical edges are gated on a VERTICAL_CONNECTOR on the LOWER of the two tiles
-    // (same rule as can_mount): up from `mount` needs a connector on `mount`; down
-    // from `mount` needs a connector on the tile below.
-    if( has_vertical_connector_at( mount ) ) {
+    // Vertical edges are carried by frames, exactly like planar edges: the edge
+    // between a lower tile and the tile above it exists iff the LOWER tile holds a
+    // structural frame (which is what supports the upper part). Climbing between decks
+    // is a separate concern gated by VERTICAL_TRAVERSAL in allows_deck_traversal().
+    if( has_structural_part( mount ) ) {
         neighbours.emplace_back( mount + tripoint_rel_ms::above );
     }
     const tripoint_rel_ms below = mount + tripoint_rel_ms::below;
-    if( has_vertical_connector_at( below ) ) {
+    if( has_structural_part( below ) ) {
         neighbours.push_back( below );
     }
     return neighbours;
@@ -1293,18 +1294,20 @@ bool vehicle::allows_deck_traversal( const tripoint_rel_ms &from_mount, int dz )
     if( dz != 1 && dz != -1 ) {
         return false;
     }
-    // Connector gates the vertical edge, same asymmetry as connected_neighbours():
-    // climbing up needs a connector on `from_mount`; climbing down needs one on
+    // A VERTICAL_TRAVERSAL part gates climbing. The asymmetry mirrors the SHAPE of
+    // connected_neighbours() (up: from_mount; down: the lower tile), but the gate is
+    // independent: connectivity is frame-based, climbing is traversal-part-based.
+    // Climbing up needs a traversal part on `from_mount`; climbing down needs one on
     // the lower tile (from_mount below).
     const bool gated = dz == 1
-                       ? has_vertical_connector_at( from_mount )
-                       : has_vertical_connector_at( from_mount + tripoint_rel_ms::below );
+                       ? has_traversal_part_at( from_mount )
+                       : has_traversal_part_at( from_mount + tripoint_rel_ms::below );
     if( !gated ) {
         return false;
     }
     // The destination must be a floor you can stand on. unbroken=false is intentional:
     // a broken deck floor still counts as a landing, consistent with the connector
-    // gate above (has_vertical_connector_at() likewise does not check is_broken()).
+    // gate above (has_traversal_part_at() likewise does not check is_broken()).
     const tripoint_rel_ms dest = from_mount + tripoint_rel_ms( 0, 0, dz );
     return part_with_feature( dest, VPFLAG_BOARDABLE, false ) >= 0;
 }
@@ -1402,11 +1405,12 @@ ret_val<void> vehicle::can_mount( const tripoint_rel_ms &dp, const vpart_info &v
             has_structural_part( south ) ||
             has_structural_part( west ) ||
             has_structural_part( north );
-        // Decks connect only through an explicit vertical connector: a bare
-        // z-neighbour is NOT connectivity (multi-floor design section 1).
+        // Upper-deck parts are supported by a frame directly below, exactly as
+        // in-plane parts are supported by an adjacent frame (frame-based vertical
+        // structure; see 2026-07-25-vehicle-vertical-frame-connectivity-design).
         const bool supported_from_below =
             dp.z() > 0 &&
-            has_vertical_connector_at( dp + tripoint_rel_ms::below );
+            has_structural_part( dp + tripoint_rel_ms::below );
         if( !is_structural_part_removed() && !supported_in_plane && !supported_from_below ) {
             return ret_val<void>::make_failure(
                        _( "Part needs to be adjacent to or on existing structure." ) );
@@ -1504,8 +1508,8 @@ ret_val<void> vehicle::can_unmount( const vehicle_part &vp_to_remove, bool allow
         return ret_val<void>::make_success(); // wrecks can have more than one structure part, so it's valid for removal
     }
 
-    // find all the vehicle's tiles adjacent to the one we're removing (a co-located
-    // connector is never a structure part, so the up-edge is a no-op here in practice)
+    // find all the vehicle's tiles adjacent to the one we're removing (connected_neighbours
+    // adds the deck above/below when a frame stacks there -- frame-based connectivity)
     std::vector<vehicle_part> adjacent_parts;
     for( const tripoint_rel_ms &np : connected_neighbours( vp_to_remove.mount ) ) {
         const std::vector<int> parts_over_there = parts_at_relative( np, false );
