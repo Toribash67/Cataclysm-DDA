@@ -214,27 +214,12 @@ static int structure_part_at( const vehicle &veh, const tripoint_rel_ms &mount )
     return -1;
 }
 
-// NOTE on the "public can_unmount fallback" mentioned in the task brief:
-// can_unmount() short-circuits to success() immediately for any part whose
-// vpart_info::location isn't "structure" (see vehicle.cpp, "non-structure
-// parts don't have extra requirements"). ladder_internal's location is
-// "center", so `can_unmount(ladder_part, false)` trivially succeeds
-// regardless of the 3D BFS -- asserting `!can_unmount(ladder,...).success()`
-// fails even on a correct implementation (confirmed empirically: it fails
-// the same way both before and after the is_connected/can_unmount rewrite).
-// It is also not possible to remove the structure part co-located with the
-// connector directly: can_unmount() refuses to remove a structure part while
-// any other non-cable part (the connector itself) still occupies the same
-// tile ("Remove all other attached parts first"). So the discriminating
-// scenario is built one level removed from the connector: a second
-// upper-deck tile that reaches the rest of the vehicle ONLY by a planar hop
-// through the tile sitting directly above the connector. Removing that
-// bridge tile must be refused because doing so would strand the second
-// upper-deck tile -- exactly the "would split the vehicle" check that the
-// 3D-aware adjacency gather (can_unmount) and BFS (is_connected) exist to
-// catch. A 2D-only implementation projects everything to z==0 and instead
-// sees a phantom ground-layer neighbour, wrongly allowing the removal.
-TEST_CASE( "upper_deck_removal_blocked_when_only_link_is_connector", "[vehicle][multifloor]" )
+// A single stacked frame is the sole structural bridge to a second upper-deck tile.
+// Removing the bridge frame would strand that tile, so can_unmount must refuse it --
+// the 3D, frame-gated "would this split the vehicle?" check. A traversal-gated (pre-
+// change) connected_neighbours gives the bridge frame only its planar neighbour, sees
+// a removable end tile, and wrongly allows the removal.
+TEST_CASE( "upper_deck_removal_blocked_when_only_link_is_frame_bridge", "[vehicle][multifloor]" )
 {
     map &here = get_map();
     clear_map();
@@ -242,19 +227,17 @@ TEST_CASE( "upper_deck_removal_blocked_when_only_link_is_connector", "[vehicle][
                                      0_degrees, 0, 0 );
     REQUIRE( veh != nullptr );
 
-    // b0: ground bridge tile, planar-adjacent to the car's real structure,
-    // carrying the sole vertical connector up to the upper deck.
+    // b0: ground bridge frame, planar-adjacent to the car's real structure.
     const tripoint_rel_ms b0( 2, -2, 0 );
     REQUIRE( veh->install_part( here, b0, vpart_frame ) >= 0 );
-    REQUIRE( veh->install_part( here, b0, vpart_ladder_internal ) >= 0 );
 
-    // u0: upper-deck frame directly above the connector. Its only true 3D
-    // neighbours are b0 (down, through the connector) and u1 (planar, same z).
+    // u0: upper frame stacked on b0. Its 3D neighbours are b0 (down, through the frame)
+    // and u1 (planar, same z).
     const tripoint_rel_ms u0( 2, -2, 1 );
     REQUIRE( veh->install_part( here, u0, vpart_frame ) >= 0 );
 
-    // u1: a second upper-deck tile reachable from the rest of the vehicle
-    // ONLY through u0 -- there is no connector underneath u1.
+    // u1: a second upper-deck tile reachable from the rest of the vehicle ONLY through
+    // u0 -- there is no frame under u1 at (3,-2,0).
     const tripoint_rel_ms u1( 3, -2, 1 );
     REQUIRE( veh->install_part( here, u1, vpart_frame ) >= 0 );
 
@@ -264,7 +247,7 @@ TEST_CASE( "upper_deck_removal_blocked_when_only_link_is_connector", "[vehicle][
     CHECK( !veh->can_unmount( veh->part( idx_u0 ), false ).success() );
 }
 
-TEST_CASE( "removing_connector_splits_off_upper_deck", "[vehicle][multifloor]" )
+TEST_CASE( "removing_ladder_keeps_decks_connected", "[vehicle][multifloor]" )
 {
     map &here = get_map();
     clear_map();
@@ -275,7 +258,8 @@ TEST_CASE( "removing_connector_splits_off_upper_deck", "[vehicle][multifloor]" )
                        "VERTICAL_TRAVERSAL", false );
     REQUIRE( ladder >= 0 );
 
-    // Force the split: remove the only vertical link.
+    // Removing the climb affordance must NOT split the vehicle: the decks are held
+    // together structurally by the stacked frames, independent of traversal.
     veh->remove_part( veh->part( ladder ) );
     veh->find_and_split_vehicles( here, {} );
 
@@ -286,7 +270,7 @@ TEST_CASE( "removing_connector_splits_off_upper_deck", "[vehicle][multifloor]" )
             break;
         }
     }
-    CHECK_FALSE( still_has_upper );
+    CHECK( still_has_upper );
 }
 
 TEST_CASE( "part_displayed_at_resolves_per_deck", "[vehicle][multifloor]" )

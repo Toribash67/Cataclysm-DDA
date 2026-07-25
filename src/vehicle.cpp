@@ -1275,14 +1275,15 @@ std::vector<tripoint_rel_ms> vehicle::connected_neighbours( const tripoint_rel_m
     for( const point &offset : four_adjacent_offsets ) {
         neighbours.emplace_back( mount + tripoint_rel_ms( offset.x, offset.y, 0 ) );
     }
-    // Vertical edges are gated on a VERTICAL_TRAVERSAL on the LOWER of the two tiles
-    // (same rule as can_mount): up from `mount` needs a connector on `mount`; down
-    // from `mount` needs a connector on the tile below.
-    if( has_traversal_part_at( mount ) ) {
+    // Vertical edges are carried by frames, exactly like planar edges: the edge
+    // between a lower tile and the tile above it exists iff the LOWER tile holds a
+    // structural frame (which is what supports the upper part). Climbing between decks
+    // is a separate concern gated by VERTICAL_TRAVERSAL in allows_deck_traversal().
+    if( has_structural_part( mount ) ) {
         neighbours.emplace_back( mount + tripoint_rel_ms::above );
     }
     const tripoint_rel_ms below = mount + tripoint_rel_ms::below;
-    if( has_traversal_part_at( below ) ) {
+    if( has_structural_part( below ) ) {
         neighbours.push_back( below );
     }
     return neighbours;

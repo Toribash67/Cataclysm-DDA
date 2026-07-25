@@ -829,11 +829,13 @@ class vehicle
         bool has_structural_part( const point_rel_ms &dp ) const;
         bool has_structural_part( const tripoint_rel_ms &dp ) const;
         bool has_traversal_part_at( const tripoint_rel_ms &dp ) const;
-        // Connector-gated adjacency of a mount: its four planar neighbours (same z),
-        // plus the tile above (iff a VERTICAL_TRAVERSAL sits on this tile) and the
-        // tile below (iff a VERTICAL_TRAVERSAL sits on that lower tile). A bare
+        // Frame-gated adjacency of a mount: its four planar neighbours (same z), plus
+        // the tile above (iff this tile holds a structural frame) and the tile below
+        // (iff that lower tile holds a structural frame). Frames carry vertical
+        // structure the same way they carry planar structure; a bare non-frame
         // z-neighbour never connects. Single source of the deck-connectivity rule
-        // shared by is_connected / can_unmount / find_and_split_vehicles.
+        // shared by is_connected / can_unmount / find_and_split_vehicles. Traversal
+        // (climbing) is separate -- see allows_deck_traversal / VERTICAL_TRAVERSAL.
         std::vector<tripoint_rel_ms> connected_neighbours( const tripoint_rel_ms &mount ) const;
         bool is_structural_part_removed() const;
         void open_or_close( map &here, int part_index, bool opening );
