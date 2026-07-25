@@ -151,6 +151,11 @@ than assuming z began at 0. The composition therefore lives across *both*
 accesses** that must each be audited for z semantics (mechanical vs. z-meaningful).
 Plan the two categories separately; the field accesses are not uniformly trivial.
 
+> **Superseded 2026-07-25:** the ladder-gated connectivity decided below was
+> replaced by frame-based vertical structure (frames connect decks like they
+> connect the x/y plane) with the renamed `VERTICAL_TRAVERSAL` flag gating only
+> climbing. See `2026-07-25-vehicle-vertical-frame-connectivity-design.md`.
+
 **Connectivity semantics (decided: option (a), ladder-gated).** Two parts stacked
 at `(x,y,0)` and `(x,y,1)` are only "the same vehicle" if connected through a part
 carrying a **new vertical-connector flag** (see §2). A bare z-neighbor does **not**
