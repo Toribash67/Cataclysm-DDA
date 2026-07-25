@@ -3163,7 +3163,7 @@ void veh_interact::complete_vehicle( map &here, Character &you )
                 orient_part( here, &veh, vpinfo, partnum, q );
             }
 
-            const tripoint_bub_ms vehp = veh.pos_bub( here ) + tripoint_rel_ms( q, 0 );
+            const tripoint_bub_ms vehp = veh.pos_bub( here ) + tripoint_rel_ms( q, d.z() );
             // TODO: allow boarding for non-players as well.
             Character *const pl = get_creature_tracker().creature_at<Character>( vehp );
             if( vpinfo.has_flag( VPFLAG_BOARDABLE ) && pl ) {
