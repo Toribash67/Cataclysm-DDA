@@ -241,6 +241,9 @@ TEST_CASE( "upper_deck_removal_blocked_when_only_link_is_frame_bridge", "[vehicl
     const tripoint_rel_ms u1( 3, -2, 1 );
     REQUIRE( veh->install_part( here, u1, vpart_frame ) >= 0 );
 
+    // (3,-2,0) must be bare terrain for u1's "no frame below" premise to hold.
+    REQUIRE( veh->parts_at_relative( tripoint_rel_ms( 3, -2, 0 ), false ).empty() );
+
     const int idx_u0 = structure_part_at( *veh, u0 );
     REQUIRE( idx_u0 >= 0 );
 
@@ -679,4 +682,61 @@ TEST_CASE( "two_floor_bus_mass_center_is_planar", "[vehicle][multifloor]" )
     CHECK( com.x() <= 2 );
     CHECK( com.y() >= 0 );
     CHECK( com.y() <= 1 );
+}
+
+TEST_CASE( "frame_stacked_decks_connect_but_do_not_allow_climbing", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    const int ladder = veh->part_with_feature( tripoint_rel_ms( 0, 0, 0 ),
+                       "VERTICAL_TRAVERSAL", false );
+    REQUIRE( ladder >= 0 );
+    veh->remove_part( veh->part( ladder ) );
+    veh->find_and_split_vehicles( here, {} );
+
+    // Still one vehicle with an upper deck: frames connect the decks structurally...
+    bool still_has_upper = false;
+    for( const vpart_reference &vpr : veh->get_all_parts() ) {
+        if( !vpr.part().removed && vpr.part().mount.z() == 1 ) {
+            still_has_upper = true;
+            break;
+        }
+    }
+    REQUIRE( still_has_upper );
+
+    // ...but with the ladder gone there is no way to climb between the decks.
+    CHECK_FALSE( veh->allows_deck_traversal( tripoint_rel_ms( 0, 0, 0 ), 1 ) );
+    CHECK_FALSE( veh->allows_deck_traversal( tripoint_rel_ms( 0, 0, 1 ), -1 ) );
+}
+
+TEST_CASE( "removing_one_of_several_frame_bridges_does_not_split", "[vehicle][multifloor]" )
+{
+    // The bus stacks a frame on every upper tile, so the decks are connected at
+    // multiple points. Removing a single ground frame under one stack must not split
+    // the vehicle: the upper tile above it still reaches ground through neighbouring
+    // stacks.
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+
+    // Ground frame under the (1,1) stack; its upper (1,1,1) also neighbours upper
+    // frames at (1,0,1) and (0,1,1), which keep their own ground frames.
+    const int gi = structure_part_at( *veh, tripoint_rel_ms( 1, 1, 0 ) );
+    REQUIRE( gi >= 0 );
+    veh->remove_part( veh->part( gi ) );
+    veh->find_and_split_vehicles( here, {} );
+
+    int upper_tiles = 0;
+    for( const vpart_reference &vpr : veh->get_all_parts() ) {
+        if( !vpr.part().removed && vpr.part().mount.z() == 1 ) {
+            upper_tiles++;
+        }
+    }
+    // All four original upper tiles (0,0)/(0,1)/(1,0)/(1,1) remain on the one vehicle.
+    CHECK( upper_tiles >= 4 );
 }
