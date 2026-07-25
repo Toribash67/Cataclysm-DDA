@@ -1402,11 +1402,12 @@ ret_val<void> vehicle::can_mount( const tripoint_rel_ms &dp, const vpart_info &v
             has_structural_part( south ) ||
             has_structural_part( west ) ||
             has_structural_part( north );
-        // Decks connect only through an explicit vertical connector: a bare
-        // z-neighbour is NOT connectivity (multi-floor design section 1).
+        // Upper-deck parts are supported by a frame directly below, exactly as
+        // in-plane parts are supported by an adjacent frame (frame-based vertical
+        // structure; see 2026-07-25-vehicle-vertical-frame-connectivity-design).
         const bool supported_from_below =
             dp.z() > 0 &&
-            has_traversal_part_at( dp + tripoint_rel_ms::below );
+            has_structural_part( dp + tripoint_rel_ms::below );
         if( !is_structural_part_removed() && !supported_in_plane && !supported_from_below ) {
             return ret_val<void>::make_failure(
                        _( "Part needs to be adjacent to or on existing structure." ) );

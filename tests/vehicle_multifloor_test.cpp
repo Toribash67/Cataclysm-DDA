@@ -49,7 +49,7 @@ TEST_CASE( "vertical_traversal_flag_is_recognized", "[vehicle][multifloor]" )
 
 static const vpart_id vpart_frame( "frame" );
 
-TEST_CASE( "upper_deck_mount_requires_vertical_connector", "[vehicle][multifloor]" )
+TEST_CASE( "upper_deck_frame_supported_by_frame_below", "[vehicle][multifloor]" )
 {
     map &here = get_map();
     clear_map();
@@ -57,49 +57,52 @@ TEST_CASE( "upper_deck_mount_requires_vertical_connector", "[vehicle][multifloor
                                      0_degrees, 0, 0 );
     REQUIRE( veh != nullptr );
 
-    const vpart_info &floor = vpart_id( "hdframe" ).obj();
+    const vpart_info &hdframe = vpart_id( "hdframe" ).obj();
 
-    // Cheap check: (0, 0, 1) is simply empty, so plain planar adjacency alone
-    // already rejects it. This alone would still pass with the connector gate
-    // deleted, so it does not prove anything about the gate on its own.
-    const tripoint_rel_ms unsupported( 0, 0, 1 );
-    CHECK( !veh->can_mount( unsupported, floor ).success() );
+    // (-1, -2) is planar-adjacent to the car's real structure at (-1, -1) but is
+    // itself bare terrain -- unlike (0, 0), which the "car" prototype's own footprint
+    // already occupies with a structural frame. Before anything is installed on the
+    // ground tile below, nothing supports an upper-deck frame at (-1, -2, 1).
+    const tripoint_rel_ms above( -1, -2, 1 );
+    CHECK( !veh->can_mount( above, hdframe ).success() );
 
-    // The discriminating case: mirror upper_deck_mount_allowed_above_connector's
-    // setup exactly, but install a plain structural frame (NOT a vertical
-    // connector) on the new ground tile. (-1, -2) is a distinct tile from that
-    // test's (2, -2), planar-adjacent to the car's real structure at (-1, -1),
-    // so the frame installs there. Real structure directly below is present,
-    // but with no connector, z=1 above it must still be rejected -- proving
-    // it is specifically the connector, not "any part below," that legalizes
-    // an upper-deck mount.
+    // A plain structural frame on that new ground tile. A frame directly below now
+    // legalizes an upper-deck frame stacked on it -- no ladder/traversal part required.
     const tripoint_rel_ms ground( -1, -2, 0 );
     REQUIRE( veh->install_part( here, ground, vpart_frame ) >= 0 );
 
-    const tripoint_rel_ms above( -1, -2, 1 );
-    CHECK( !veh->can_mount( above, floor ).success() );
+    CHECK( veh->can_mount( above, hdframe ).success() );
 }
 
-TEST_CASE( "upper_deck_mount_allowed_above_connector", "[vehicle][multifloor]" )
+TEST_CASE( "upper_deck_nonframe_part_needs_no_frame_directly_below", "[vehicle][multifloor]" )
 {
+    // A non-frame upper-deck part (seat) mounts by planar adjacency to an existing
+    // upper-deck frame, with NO frame directly beneath the seat itself -- the vertical
+    // analog of the in-plane / external-attach rule. (Setup itself depends on the
+    // frame-below mount rule: installing the upper frame requires a frame below it.)
     map &here = get_map();
     clear_map();
     vehicle *veh = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms( 60, 60, 0 ),
                                      0_degrees, 0, 0 );
     REQUIRE( veh != nullptr );
 
-    // Every occupied tile in the stock "car" already carries a "center"-location
-    // part (seat/door/windshield/board/...), which would conflict with
-    // ladder_internal's own "center" location.  Extend the vehicle by one tile
-    // instead: (2, -2) is just outside the car's footprint but planar-adjacent
-    // to the real structural frame at (2, -1), so a plain frame can be mounted
-    // there, and the ladder can then be mounted on top of it.
     const tripoint_rel_ms ground( 2, -2, 0 );
     REQUIRE( veh->install_part( here, ground, vpart_frame ) >= 0 );
-    REQUIRE( veh->install_part( here, ground, vpart_ladder_internal ) >= 0 );
+    const tripoint_rel_ms upper_frame( 2, -2, 1 );
+    REQUIRE( veh->install_part( here, upper_frame, vpart_frame ) >= 0 );
 
-    const tripoint_rel_ms above( 2, -2, 1 );
-    CHECK( veh->can_mount( above, vpart_id( "hdframe" ).obj() ).success() );
+    // A frame one tile further out on the upper deck: planar-adjacent to upper_frame,
+    // but the tile directly beneath it (3,-2,0) is empty, so it is legalized purely by
+    // in-plane adjacency (supported_in_plane), not by anything below it.
+    const tripoint_rel_ms outer_frame_tile( 3, -2, 1 );
+    REQUIRE( veh->parts_at_relative( tripoint_rel_ms( 3, -2, 0 ), false ).empty() );
+    REQUIRE( veh->install_part( here, outer_frame_tile, vpart_frame ) >= 0 );
+
+    // A non-frame part (seat) can then attach on that same tile. It needs no frame-below
+    // check of its own -- can_mount's "first part on a tile must be structural" rule
+    // already guarantees a structural frame occupies the tile before any non-frame part
+    // can join it, so the seat rides on the frame's support, not on anything beneath it.
+    CHECK( veh->can_mount( outer_frame_tile, vpart_id( "seat" ).obj() ).success() );
 }
 
 static const vproto_id vehicle_prototype_test_bus_2floor( "test_bus_2floor" );
