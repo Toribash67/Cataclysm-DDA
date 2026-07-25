@@ -832,3 +832,46 @@ TEST_CASE( "vehicle_zone_z_roundtrip", "[vehicle][multifloor]" )
     CHECK( after.loot_zones.count( tripoint_rel_ms( 1, 0, 1 ) ) == 1 );
     CHECK( after.loot_zones.count( tripoint_rel_ms( 1, 0, 0 ) ) == 0 );
 }
+
+TEST_CASE( "multideck_zones_labels_survive_planar_rekey", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+
+    // Same (x,y), different deck: the exact collision 2D keys corrupt.
+    veh->labels.insert( label( tripoint_rel_ms( 0, 0, 0 ), "ground" ) );
+    veh->labels.insert( label( tripoint_rel_ms( 0, 0, 1 ), "upper" ) );
+    const zone_data zd( "z", zone_type_id( "LOOT_UNSORTED" ), your_fac,
+                        false, true, tripoint_abs_ms::zero, tripoint_abs_ms::zero );
+    veh->loot_zones.emplace( tripoint_rel_ms( 0, 0, 0 ), zd );
+    veh->loot_zones.emplace( tripoint_rel_ms( 0, 0, 1 ), zd );
+    REQUIRE( veh->labels.size() == 2 );
+    REQUIRE( veh->loot_zones.size() == 2 );
+
+    // shift_parts re-keys every label and zone by a planar delta. Deck (z) must be
+    // preserved and the two decks must stay distinct (2D keys would collapse them).
+    veh->shift_parts( here, point_rel_ms( 1, 0 ) );
+
+    REQUIRE( veh->labels.size() == 2 );
+    int ground_z = -99;
+    int upper_z = -99;
+    for( const label &l : veh->labels ) {
+        if( l.text == "ground" ) {
+            ground_z = l.z();
+        } else if( l.text == "upper" ) {
+            upper_z = l.z();
+        }
+    }
+    CHECK( ground_z == 0 ); // ground label stayed on the ground deck
+    CHECK( upper_z == 1 );  // upper label stayed on the upper deck
+
+    REQUIRE( veh->loot_zones.size() == 2 );
+    int zone_z_sum = 0;
+    for( const auto &z : veh->loot_zones ) {
+        zone_z_sum += z.first.z();
+    }
+    CHECK( zone_z_sum == 1 ); // exactly one zone at z=0 and one at z=1
+}
