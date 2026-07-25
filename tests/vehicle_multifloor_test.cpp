@@ -18,6 +18,7 @@
 #include "veh_type.h"
 #include "type_id.h"
 #include "coordinates.h"
+#include "veh_interact.h"
 
 static const vproto_id vehicle_prototype_car( "car" );
 static const damage_type_id damage_bash( "bash" );
@@ -874,4 +875,16 @@ TEST_CASE( "multideck_zones_labels_survive_planar_rekey", "[vehicle][multifloor]
         zone_z_sum += z.first.z();
     }
     CHECK( zone_z_sum == 1 ); // exactly one zone at z=0 and one at z=1
+}
+
+TEST_CASE( "veh_interact_deck_clamp", "[vehicle][multifloor]" )
+{
+    // Single-floor vehicle: min=max=0 -> may step to 1 (start a deck) but not below 0.
+    CHECK( veh_interact_clamp_deck( 1, 0, 0 ) == 1 );
+    CHECK( veh_interact_clamp_deck( 2, 0, 0 ) == 1 );
+    CHECK( veh_interact_clamp_deck( -1, 0, 0 ) == 0 );
+    // Two-floor vehicle: min=0,max=1 -> up to 2, down to 0.
+    CHECK( veh_interact_clamp_deck( 3, 0, 1 ) == 2 );
+    CHECK( veh_interact_clamp_deck( -5, 0, 1 ) == 0 );
+    CHECK( veh_interact_clamp_deck( 1, 0, 1 ) == 1 );
 }

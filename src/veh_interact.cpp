@@ -101,6 +101,11 @@ static const trait_id trait_STRONGBACK( "STRONGBACK" );
 
 static const vpart_id vpart_ap_wall_wiring( "ap_wall_wiring" );
 
+int veh_interact_clamp_deck( int desired, int min_z, int max_z )
+{
+    return std::clamp( desired, min_z, max_z + 1 );
+}
+
 static std::string status_color( bool status )
 {
     return status ? "<color_green>" : "<color_red>";
@@ -284,6 +289,8 @@ veh_interact::veh_interact( map &here, vehicle &veh, const point_rel_ms &p )
     main_context.register_action( "CHANGE_SHAPE" );
     main_context.register_action( "ASSIGN_CREW" );
     main_context.register_action( "RELABEL" );
+    main_context.register_action( "SELECT_Z_UP" );
+    main_context.register_action( "SELECT_Z_DOWN" );
     main_context.register_action( "PREV_TAB" );
     main_context.register_action( "NEXT_TAB" );
     main_context.register_action( "OVERVIEW_DOWN" );
@@ -579,6 +586,12 @@ void veh_interact::do_main_loop( map &here )
                     popup( _( "You cannot relabel this vehicle as it is owned by: %s." ), _( owner_fac->name ) );
                 }
             }
+        } else if( action == "SELECT_Z_UP" ) {
+            sel_z = veh_interact_clamp_deck( sel_z + 1, veh->mount_min_z(), veh->mount_max_z() );
+            move_cursor( here, point_rel_ms::zero );
+        } else if( action == "SELECT_Z_DOWN" ) {
+            sel_z = veh_interact_clamp_deck( sel_z - 1, veh->mount_min_z(), veh->mount_max_z() );
+            move_cursor( here, point_rel_ms::zero );
         } else if( action == "FUEL_LIST_DOWN" ) {
             move_fuel_cursor( here, 1 );
         } else if( action == "FUEL_LIST_UP" ) {
@@ -2366,6 +2379,9 @@ void veh_interact::display_veh( map &here )
         col_at_cursor = red_background( col_at_cursor );
     }
     mvwputch( w_disp, pt_disp, col_at_cursor, sym_at_cursor );
+    if( sel_z != 0 ) {
+        mvwprintz( w_disp, point( 0, getmaxy( w_disp ) - 1 ), c_yellow, _( "Deck %d" ), sel_z );
+    }
     wnoutrefresh( w_disp );
 }
 

@@ -71,6 +71,7 @@ class veh_interact
         ~veh_interact();
 
         point_rel_ms dd = point_rel_ms::zero;
+        int sel_z = 0; // deck currently being edited; dd stays planar
         /* starting offset for vehicle parts description display and max offset for scrolling */
         int start_at = 0;
         int start_limit = 0;
@@ -301,5 +302,7 @@ void act_vehicle_siphon( map &here, vehicle *veh );
 
 void orient_part( map &here, vehicle *veh, const vpart_info &vpinfo, int partnum,
                   const std::optional<point_rel_ms> &part_placement = std::nullopt );
+
+int veh_interact_clamp_deck( int desired, int min_z, int max_z );
 
 #endif // CATA_SRC_VEH_INTERACT_H

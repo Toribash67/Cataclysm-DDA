@@ -1919,6 +1919,20 @@
   },
   {
     "type": "keybinding",
+    "id": "SELECT_Z_UP",
+    "category": "VEH_INTERACT",
+    "name": "Select upper deck",
+    "bindings": [ { "input_method": "keyboard_char", "key": "<" } ]
+  },
+  {
+    "type": "keybinding",
+    "id": "SELECT_Z_DOWN",
+    "category": "VEH_INTERACT",
+    "name": "Select lower deck",
+    "bindings": [ { "input_method": "keyboard_char", "key": ">" } ]
+  },
+  {
+    "type": "keybinding",
     "id": "NEXT_TAB",
     "category": "VEH_INTERACT",
     "name": "Go to next tab",
@@ -1953,14 +1967,14 @@
     "id": "DESC_LIST_UP",
     "category": "VEH_INTERACT",
     "name": "Scroll up through vehicle part descriptions",
-    "bindings": [ { "input_method": "keyboard_char", "key": "<" }, { "input_method": "keyboard_code", "key": ",", "mod": [ "shift" ] } ]
+    "bindings": [ { "input_method": "keyboard_char", "key": "," }, { "input_method": "keyboard_code", "key": "," } ]
   },
   {
     "type": "keybinding",
     "id": "DESC_LIST_DOWN",
     "category": "VEH_INTERACT",
     "name": "Scroll down through vehicle part descriptions",
-    "bindings": [ { "input_method": "keyboard_char", "key": ">" }, { "input_method": "keyboard_code", "key": ".", "mod": [ "shift" ] } ]
+    "bindings": [ { "input_method": "keyboard_char", "key": "." }, { "input_method": "keyboard_code", "key": "." } ]
   },
   {
     "type": "keybinding",
