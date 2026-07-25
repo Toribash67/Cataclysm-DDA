@@ -1607,9 +1607,15 @@ bool map::displace_vehicle( vehicle &veh, const tripoint_rel_ms &dp, const bool 
             if( parts_to_move.empty() ) {
                 next_pos = veh_part.precalc[1];
             }
-            if( has_flag( ter_furn_flag::TFLAG_RAMP_UP, src + dp + next_pos ) ) {
+            // A ramp is a GROUND feature: probe the flag at the ridden part's ground-deck column
+            // tile (subtract its mount.z), so an upper-deck passenger climbs/descends WITH the
+            // ground deck -- mirroring the same fix in advance_precalc_mounts. For a ground-deck
+            // part (mount.z == 0) ground_probe == next_pos, so single-floor placement is unchanged.
+            tripoint_rel_ms ground_probe = next_pos;
+            ground_probe.z() -= veh_part.mount.z();
+            if( has_flag( ter_furn_flag::TFLAG_RAMP_UP, src + dp + ground_probe ) ) {
                 psg_offset_z += 1;
-            } else if( has_flag( ter_furn_flag::TFLAG_RAMP_DOWN, src + dp + next_pos ) ) {
+            } else if( has_flag( ter_furn_flag::TFLAG_RAMP_DOWN, src + dp + ground_probe ) ) {
                 psg_offset_z -= 1;
             }
 

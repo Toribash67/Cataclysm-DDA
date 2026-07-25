@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "avatar.h"
 #include "calendar.h"
 #include "cata_catch.h"
 #include "character.h"
@@ -16,6 +17,7 @@
 #include "map_helpers.h"
 #include "map_scale_constants.h"
 #include "monster.h"
+#include "player_helpers.h"
 #include "point.h"
 #include "tileray.h"
 #include "type_id.h"
@@ -133,6 +135,163 @@ TEST_CASE( "two_floor_bus_drives_flat_keeping_deck_stack", "[vehicle][multifloor
             }
         }
     }
+}
+
+// M5 Task 5: drive the 2-floor bus over a ramp. Mid-transition the bus spans
+// THREE z-levels at once (rear lower deck z0, rear upper / front lower z1,
+// front upper z2) -- the roughest existing movement path. Confirms the deck
+// stack invariant (upper precalc.z == lower precalc.z + 1, per column) holds
+// throughout, the bus stays whole (no spurious split), and it actually
+// changes z-level.
+static void drive_two_floor_bus_ramp( bool up )
+{
+    map &here = get_map();
+    const int transition_x = 60;
+    clear_game_and_set_ramp( transition_x, /*use_ramp=*/true, up );
+
+    const tripoint_bub_ms start( transition_x + 4, 60, up ? 0 : 1 );
+    REQUIRE( here.ter( start ) ); // terrain present at the start z
+    vehicle *veh_ptr = here.add_vehicle( vehicle_prototype_test_bus_2floor, start, 180_degrees, 1, 0 );
+    REQUIRE( veh_ptr != nullptr );
+    vehicle &veh = *veh_ptr;
+    veh.check_falling_or_floating();
+    REQUIRE_FALSE( veh.is_in_water() );
+
+    veh.tags.insert( "IN_CONTROL_OVERRIDE" );
+    veh.engine_on = true;
+    const int target_velocity = 400;
+    veh.cruise_velocity = target_velocity;
+    veh.velocity = target_velocity;
+    REQUIRE( veh.safe_velocity( here ) > 0 );
+
+    const size_t parts_before = veh.part_count();
+    bool saw_base_z_change = false;
+    const int base_z_start = veh.sm_pos.z();
+
+    for( int cycle = 0; cycle < 10 && veh.safe_velocity( here ) > 0; cycle++ ) {
+        CAPTURE( cycle );
+        clear_creatures();
+        here.vehmove();
+        REQUIRE_FALSE( veh.skidding );
+        // stays whole across the transition (no split when spanning 3 z-levels)
+        CHECK( veh.part_count() == parts_before );
+        // deck stack invariant holds even mid-ramp, per column
+        for( const vpart_reference &pref : veh.get_all_parts() ) {
+            const vehicle_part &pu = pref.part();
+            if( pu.removed || pu.is_fake || pu.mount.z() != 1 ) {
+                continue;
+            }
+            for( const vpart_reference &lref : veh.get_all_parts() ) {
+                const vehicle_part &pl = lref.part();
+                if( pl.removed || pl.is_fake || pl.mount.z() != 0 ||
+                    pl.mount.xy() != pu.mount.xy() ) {
+                    continue;
+                }
+                CAPTURE( pu.mount.xy() );
+                CHECK( pu.precalc[0].z() == pl.precalc[0].z() + 1 );
+            }
+        }
+        if( veh.sm_pos.z() != base_z_start ) {
+            saw_base_z_change = true;
+        }
+    }
+    // the bus actually changed z-level over the ramp
+    CHECK( saw_base_z_change );
+    CHECK( veh.part_count() == parts_before );
+}
+
+TEST_CASE( "two_floor_bus_drives_up_a_ramp", "[vehicle][multifloor][ramp]" )
+{
+    drive_two_floor_bus_ramp( /*up=*/true );
+}
+
+TEST_CASE( "two_floor_bus_drives_down_a_ramp", "[vehicle][multifloor][ramp]" )
+{
+    drive_two_floor_bus_ramp( /*up=*/false );
+}
+
+// M5 Task 5 Part B: a rider boarded on an UPPER-deck seat must track the upper
+// deck through a ramp z-transition, not the ground deck and not a desynced
+// level. map::displace_vehicle's passenger-placement ramp probe (src/map.cpp,
+// around line 1610) is a known twin of the advance_precalc_mounts bug fixed in
+// M5 Task 3: it probes the ramp flag at the ridden part's OWN z instead of its
+// ground-deck column tile, so an upper-deck passenger reads the paired (and
+// opposite) ramp terrain a z-level away and gets displaced the wrong way.
+TEST_CASE( "two_floor_bus_upper_deck_rider_rides_over_ramp", "[vehicle][multifloor][ramp]" )
+{
+    map &here = get_map();
+    const int transition_x = 60;
+    const bool up = true;
+    clear_game_and_set_ramp( transition_x, /*use_ramp=*/true, up );
+
+    const tripoint_bub_ms start( transition_x + 4, 60, up ? 0 : 1 );
+    REQUIRE( here.ter( start ) ); // terrain present at the start z
+    vehicle *veh_ptr = here.add_vehicle( vehicle_prototype_test_bus_2floor, start, 180_degrees, 1, 0 );
+    REQUIRE( veh_ptr != nullptr );
+    vehicle &veh = *veh_ptr;
+    veh.check_falling_or_floating();
+    REQUIRE_FALSE( veh.is_in_water() );
+
+    veh.tags.insert( "IN_CONTROL_OVERRIDE" );
+    veh.engine_on = true;
+    const int target_velocity = 400;
+    veh.cruise_velocity = target_velocity;
+    veh.velocity = target_velocity;
+    REQUIRE( veh.safe_velocity( here ) > 0 );
+
+    // Board a rider on the upper-deck seat: climb through the ground connector, then
+    // step onto the adjacent upper-deck seat -- exactly as
+    // vehicle_multifloor_test.cpp's avatar_boards_upper_deck_seat does. A bare setpos
+    // to a z=1 tile cannot be boarded reliably in a test (board_vehicle's trailing
+    // update_map() re-centres the reality bubble on the argless Character::pos_bub(),
+    // which only the bubble-shifting vertical_move path refreshes), so climb via
+    // try_vehicle_deck_move instead.
+    clear_avatar();
+    avatar &u = get_avatar();
+    const int connector = veh.part_with_feature( tripoint_rel_ms( 0, 0, 0 ), "VERTICAL_CONNECTOR",
+                          false );
+    REQUIRE( connector >= 0 );
+    const tripoint_bub_ms connector_pos = veh.bub_part_pos( here, veh.part( connector ) );
+    u.setpos( here, connector_pos );
+    here.board_vehicle( connector_pos, &u );
+    REQUIRE( u.in_vehicle );
+    REQUIRE( u.pos_bub( here ).z() == connector_pos.z() );
+
+    REQUIRE( g->try_vehicle_deck_move( 1 ) );
+    REQUIRE( u.pos_bub( here ).z() == connector_pos.z() + 1 );
+
+    const int upper_seat = veh.part_with_feature( tripoint_rel_ms( 0, 1, 1 ), "SEAT", false );
+    REQUIRE( upper_seat >= 0 );
+    const tripoint_bub_ms seat_pos = veh.bub_part_pos( here, veh.part( upper_seat ) );
+    REQUIRE( seat_pos.z() == 1 );
+    here.unboard_vehicle( u.pos_bub( here ) );
+    u.setpos( here, seat_pos );
+    here.board_vehicle( seat_pos, &u );
+    REQUIRE( u.in_vehicle );
+    REQUIRE( u.pos_bub( here ).z() == seat_pos.z() );
+
+    const int lower_seat = veh.part_with_feature( tripoint_rel_ms( 0, 1, 0 ), "SEAT", false );
+    REQUIRE( lower_seat >= 0 );
+
+    // Drive over the ramp and confirm the rider tracks the upper deck: exactly one z
+    // above the ground-deck seat in the same column, at every tick through the
+    // transition (never equal to the ground deck's z, never desynced by more than 1).
+    bool saw_z_change = false;
+    const int rider_z_start = u.pos_bub( here ).z();
+    for( int cycle = 0; cycle < 10 && veh.safe_velocity( here ) > 0; cycle++ ) {
+        CAPTURE( cycle );
+        clear_creatures();
+        here.vehmove();
+        REQUIRE_FALSE( veh.skidding );
+        const int ground_z = veh.bub_part_pos( here, veh.part( lower_seat ) ).z();
+        CAPTURE( ground_z );
+        CAPTURE( u.pos_bub( here ) );
+        CHECK( u.pos_bub( here ).z() == ground_z + 1 );
+        if( u.pos_bub( here ).z() != rider_z_start ) {
+            saw_z_change = true;
+        }
+    }
+    CHECK( saw_z_change );
 }
 
 // Algorithm goes as follows:
