@@ -12353,7 +12353,7 @@ void game::vertical_move( int movez, bool force, bool peeking )
     map &here = get_map();
     tripoint_bub_ms pos = u.pos_bub( here );
 
-    // Multi-floor vehicles: a deck-to-deck climb through a VERTICAL_CONNECTOR is
+    // Multi-floor vehicles: a deck-to-deck climb through a VERTICAL_TRAVERSAL part is
     // recognized here because vertical_move's terrain checks (GOES_UP/DOWN, stairs)
     // do not see vehicle parts. If this handles the move, we are done.
     if( !force && !peeking && !u.is_underwater() && try_vehicle_deck_move( movez ) ) {
