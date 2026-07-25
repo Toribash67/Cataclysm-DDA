@@ -888,3 +888,13 @@ TEST_CASE( "veh_interact_deck_clamp", "[vehicle][multifloor]" )
     CHECK( veh_interact_clamp_deck( -5, 0, 1 ) == 0 );
     CHECK( veh_interact_clamp_deck( 1, 0, 1 ) == 1 );
 }
+
+TEST_CASE( "veh_interact_install_mount_from_activity", "[vehicle][multifloor]" )
+{
+    // values[4],values[5] = -dd (xy mount); values[7] = sel_z.
+    std::vector<int> v{ 0, 0, 0, 0, 2, 3, 0, 1 };
+    CHECK( veh_interact_install_mount( v ) == tripoint_rel_ms( 2, 3, 1 ) );
+    // Back-compat: an activity queued before M6 has no values[7] -> z 0.
+    std::vector<int> old{ 0, 0, 0, 0, 2, 3, 0 };
+    CHECK( veh_interact_install_mount( old ) == tripoint_rel_ms( 2, 3, 0 ) );
+}

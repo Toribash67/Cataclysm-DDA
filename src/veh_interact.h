@@ -305,4 +305,6 @@ void orient_part( map &here, vehicle *veh, const vpart_info &vpinfo, int partnum
 
 int veh_interact_clamp_deck( int desired, int min_z, int max_z );
 
+tripoint_rel_ms veh_interact_install_mount( const std::vector<int> &activity_values );
+
 #endif // CATA_SRC_VEH_INTERACT_H

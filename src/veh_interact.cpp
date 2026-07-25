@@ -106,6 +106,12 @@ int veh_interact_clamp_deck( int desired, int min_z, int max_z )
     return std::clamp( desired, min_z, max_z + 1 );
 }
 
+tripoint_rel_ms veh_interact_install_mount( const std::vector<int> &activity_values )
+{
+    const int z = activity_values.size() > 7 ? activity_values[7] : 0;
+    return tripoint_rel_ms( activity_values[4], activity_values[5], z );
+}
+
 static std::string status_color( bool status )
 {
     return status ? "<color_green>" : "<color_red>";
@@ -192,6 +198,7 @@ player_activity veh_interact::serialize_activity( map &here )
     res.values.push_back( -dd.x() );   // values[4]
     res.values.push_back( -dd.y() );   // values[5]
     res.values.push_back( veh->index_of_part( vpt ) ); // values[6]
+    res.values.push_back( sel_z ); // values[7] : deck to install on
     res.str_values.emplace_back( vp->id.str() );
     res.str_values.emplace_back( "" ); // previously stored the part variant, now obsolete
     res.targets.emplace_back( std::move( refill_target ) );
@@ -919,7 +926,7 @@ bool veh_interact::update_part_requirements( map &here )
     }
     nmsg += res.second;
 
-    const ret_val<void> can_mount = veh->can_mount( -dd, *sel_vpart_info );
+    const ret_val<void> can_mount = veh->can_mount( tripoint_rel_ms( -dd, sel_z ), *sel_vpart_info );
     if( !can_mount.success() ) {
         ok = false;
         nmsg += _( "<color_white>Cannot install due to:</color>\n> " ) +
@@ -2176,7 +2183,7 @@ std::pair<bool, std::string> veh_interact::calc_lift_requirements( map &here, co
 int veh_interact::part_at( const point_rel_ms &d )
 {
     const point_rel_ms vd{ -dd + d.rotate( 1 ) };
-    return veh->part_displayed_at( vd );
+    return veh->part_displayed_at( tripoint_rel_ms( vd, sel_z ) );
 }
 
 /**
@@ -2222,7 +2229,8 @@ void veh_interact::move_cursor( map &here, const point_rel_ms &d, int dstart_at 
     cpart = part_at( point_rel_ms::zero );
     const point_rel_ms vd = -dd;
     const point_rel_ms q = veh->coord_translate( vd );
-    const tripoint_bub_ms vehp = veh->pos_bub( here ) + q;
+    tripoint_bub_ms vehp = veh->pos_bub( here ) + q;
+    vehp.z() += sel_z;
     const bool has_critter = get_creature_tracker().creature_at( vehp );
     terrain_here = here.ter( vehp ).obj();
     bool obstruct = here.impassable_ter_furn( vehp );
@@ -3089,7 +3097,7 @@ void veh_interact::complete_vehicle( map &here, Character &you )
     }
 
     vehicle &veh = ovp->vehicle();
-    const point_rel_ms d( you.activity.values[4], you.activity.values[5] );
+    const tripoint_rel_ms d = veh_interact_install_mount( you.activity.values );
     const vpart_id part_id( you.activity.str_values[0] );
     const vpart_info &vpinfo = part_id.obj();
 
@@ -3136,8 +3144,8 @@ void veh_interact::complete_vehicle( map &here, Character &you )
             you.invalidate_crafting_inventory();
             const int partnum = veh.install_part( here, d, part_id, std::move( base ), installed_with );
             if( partnum < 0 ) {
-                debugmsg( "complete_vehicle install part fails dx=%d dy=%d id=%s",
-                          d.x(), d.y(), part_id.c_str() );
+                debugmsg( "complete_vehicle install part fails dx=%d dy=%d dz=%d id=%s",
+                          d.x(), d.y(), d.z(), part_id.c_str() );
                 break;
             }
             ::vehicle_part &vp_new = veh.part( partnum );
@@ -3147,7 +3155,7 @@ void veh_interact::complete_vehicle( map &here, Character &you )
 
             // Need map-relative coordinates to compare to output of look_around.
             // Need to call coord_translate() directly since it's a new part.
-            const point_rel_ms q = veh.coord_translate( d );
+            const point_rel_ms q = veh.coord_translate( d.xy() );
 
             if( vpinfo.has_flag( VPFLAG_CONE_LIGHT ) ||
                 vpinfo.has_flag( VPFLAG_WIDE_CONE_LIGHT ) ||
