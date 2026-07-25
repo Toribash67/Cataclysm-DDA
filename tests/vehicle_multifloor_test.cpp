@@ -644,12 +644,29 @@ TEST_CASE( "upper_deck_precalc_z_tracks_lower_deck_over_ramp", "[vehicle][multif
         }
     };
 
+    // Guard against silent degradation: the deck-gap invariant must be exercised WHILE a ramp
+    // displacement is in flight (a part's precalc.z lifted off its mount deck), not only on flat
+    // ground where precalc.z == mount.z for every part. (The whole-vehicle sm_pos.z() only flips
+    // once the pivot crosses, which takes more travel than this short run; a lifted front part is
+    // the earlier, sufficient signal that the ramp composition is actually being tested.)
+    auto any_part_on_ramp = [&]() {
+        for( const vpart_reference &vp : veh->get_all_parts() ) {
+            const vehicle_part &p = vp.part();
+            if( !p.removed && !p.is_fake && p.precalc[0].z() != p.mount.z() ) {
+                return true;
+            }
+        }
+        return false;
+    };
+    bool saw_ramp_displacement = false;
     for( int cycle = 0; cycle < 8; cycle++ ) {
         CAPTURE( cycle );
         deck_gap_holds();
         here.vehmove();
+        saw_ramp_displacement = saw_ramp_displacement || any_part_on_ramp();
     }
     deck_gap_holds();
+    REQUIRE( saw_ramp_displacement );
 }
 
 // M5 §5: the mass center stays PLANAR by design — calc_mass_center accumulates
