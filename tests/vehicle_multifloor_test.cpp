@@ -41,10 +41,10 @@ TEST_CASE( "vehicle_install_part_accepts_tripoint_mount", "[vehicle][multifloor]
 
 static const vpart_id vpart_ladder_internal( "ladder_internal" );
 
-TEST_CASE( "vertical_connector_flag_is_recognized", "[vehicle][multifloor]" )
+TEST_CASE( "vertical_traversal_flag_is_recognized", "[vehicle][multifloor]" )
 {
     // The flag must resolve through the fast-path enum, not just the string set.
-    CHECK( vpart_ladder_internal.obj().has_flag( VPFLAG_VERTICAL_CONNECTOR ) );
+    CHECK( vpart_ladder_internal.obj().has_flag( VPFLAG_VERTICAL_TRAVERSAL ) );
 }
 
 static const vpart_id vpart_frame( "frame" );
@@ -269,7 +269,7 @@ TEST_CASE( "removing_connector_splits_off_upper_deck", "[vehicle][multifloor]" )
                                      tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
     REQUIRE( veh != nullptr );
     const int ladder = veh->part_with_feature( tripoint_rel_ms( 0, 0, 0 ),
-                       "VERTICAL_CONNECTOR", false );
+                       "VERTICAL_TRAVERSAL", false );
     REQUIRE( ladder >= 0 );
 
     // Force the split: remove the only vertical link.
@@ -361,7 +361,7 @@ TEST_CASE( "try_vehicle_deck_move_climbs_between_decks", "[vehicle][multifloor]"
     // Stand the avatar on the ground connector tile (0,0,0) of the bus and board.
     const tripoint_bub_ms connector_pos = veh->bub_part_pos( here,
                                           veh->part( veh->part_with_feature(
-                                                  tripoint_rel_ms( 0, 0, 0 ), "VERTICAL_CONNECTOR", false ) ) );
+                                                  tripoint_rel_ms( 0, 0, 0 ), "VERTICAL_TRAVERSAL", false ) ) );
     u.setpos( here, connector_pos );
     here.board_vehicle( connector_pos, &u );
     REQUIRE( u.in_vehicle );
@@ -498,7 +498,7 @@ TEST_CASE( "avatar_boards_upper_deck_seat", "[vehicle][multifloor]" )
     // Climbing through the connector (Task 2's try_vehicle_deck_move) performs that shift,
     // building the z=1 caches and refreshing the cached position, exactly as real play.
     const int connector = veh->part_with_feature( tripoint_rel_ms( 0, 0, 0 ),
-                          "VERTICAL_CONNECTOR", false );
+                          "VERTICAL_TRAVERSAL", false );
     REQUIRE( connector >= 0 );
     const tripoint_bub_ms connector_pos = veh->bub_part_pos( here, veh->part( connector ) );
     u.setpos( here, connector_pos );

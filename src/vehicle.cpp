@@ -1255,12 +1255,12 @@ bool vehicle::has_structural_part( const tripoint_rel_ms &dp ) const
     return false;
 }
 
-bool vehicle::has_vertical_connector_at( const tripoint_rel_ms &dp ) const
+bool vehicle::has_traversal_part_at( const tripoint_rel_ms &dp ) const
 {
     for( const int elem : parts_at_relative( dp, false ) ) {
         const vehicle_part &vp = part( elem );
         const vpart_info &vpi = vp.info();
-        if( vpi.has_flag( VPFLAG_VERTICAL_CONNECTOR ) &&
+        if( vpi.has_flag( VPFLAG_VERTICAL_TRAVERSAL ) &&
             !vp.has_flag( vp_flag::carried_flag ) ) {
             return true;
         }
@@ -1275,14 +1275,14 @@ std::vector<tripoint_rel_ms> vehicle::connected_neighbours( const tripoint_rel_m
     for( const point &offset : four_adjacent_offsets ) {
         neighbours.emplace_back( mount + tripoint_rel_ms( offset.x, offset.y, 0 ) );
     }
-    // Vertical edges are gated on a VERTICAL_CONNECTOR on the LOWER of the two tiles
+    // Vertical edges are gated on a VERTICAL_TRAVERSAL on the LOWER of the two tiles
     // (same rule as can_mount): up from `mount` needs a connector on `mount`; down
     // from `mount` needs a connector on the tile below.
-    if( has_vertical_connector_at( mount ) ) {
+    if( has_traversal_part_at( mount ) ) {
         neighbours.emplace_back( mount + tripoint_rel_ms::above );
     }
     const tripoint_rel_ms below = mount + tripoint_rel_ms::below;
-    if( has_vertical_connector_at( below ) ) {
+    if( has_traversal_part_at( below ) ) {
         neighbours.push_back( below );
     }
     return neighbours;
@@ -1297,14 +1297,14 @@ bool vehicle::allows_deck_traversal( const tripoint_rel_ms &from_mount, int dz )
     // climbing up needs a connector on `from_mount`; climbing down needs one on
     // the lower tile (from_mount below).
     const bool gated = dz == 1
-                       ? has_vertical_connector_at( from_mount )
-                       : has_vertical_connector_at( from_mount + tripoint_rel_ms::below );
+                       ? has_traversal_part_at( from_mount )
+                       : has_traversal_part_at( from_mount + tripoint_rel_ms::below );
     if( !gated ) {
         return false;
     }
     // The destination must be a floor you can stand on. unbroken=false is intentional:
     // a broken deck floor still counts as a landing, consistent with the connector
-    // gate above (has_vertical_connector_at() likewise does not check is_broken()).
+    // gate above (has_traversal_part_at() likewise does not check is_broken()).
     const tripoint_rel_ms dest = from_mount + tripoint_rel_ms( 0, 0, dz );
     return part_with_feature( dest, VPFLAG_BOARDABLE, false ) >= 0;
 }
@@ -1406,7 +1406,7 @@ ret_val<void> vehicle::can_mount( const tripoint_rel_ms &dp, const vpart_info &v
         // z-neighbour is NOT connectivity (multi-floor design section 1).
         const bool supported_from_below =
             dp.z() > 0 &&
-            has_vertical_connector_at( dp + tripoint_rel_ms::below );
+            has_traversal_part_at( dp + tripoint_rel_ms::below );
         if( !is_structural_part_removed() && !supported_in_plane && !supported_from_below ) {
             return ret_val<void>::make_failure(
                        _( "Part needs to be adjacent to or on existing structure." ) );

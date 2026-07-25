@@ -248,7 +248,7 @@ TEST_CASE( "two_floor_bus_upper_deck_rider_rides_over_ramp", "[vehicle][multiflo
     // try_vehicle_deck_move instead.
     clear_avatar();
     avatar &u = get_avatar();
-    const int connector = veh.part_with_feature( tripoint_rel_ms( 0, 0, 0 ), "VERTICAL_CONNECTOR",
+    const int connector = veh.part_with_feature( tripoint_rel_ms( 0, 0, 0 ), "VERTICAL_TRAVERSAL",
                           false );
     REQUIRE( connector >= 0 );
     const tripoint_bub_ms connector_pos = veh.bub_part_pos( here, veh.part( connector ) );

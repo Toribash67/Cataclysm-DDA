@@ -13,7 +13,7 @@
       "removal": { "skills": [ [ "mechanics", 2 ] ], "time": "30 m", "using": [ [ "vehicle_wrench_2", 1 ] ] }
     },
     "breaks_into": [ { "item": "scrap_aluminum", "count": [ 2, 4 ] } ],
-    "flags": [ "VERTICAL_CONNECTOR", "BOARDABLE", "OBSTACLE" ],
+    "flags": [ "VERTICAL_TRAVERSAL", "BOARDABLE", "OBSTACLE" ],
     "variants": [ { "symbols": "H", "symbols_broken": "x" } ]
   },
   {

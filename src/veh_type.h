@@ -117,9 +117,11 @@ enum vpart_bitflags : int {
     VPFLAG_IGNORE_LEG_REQUIREMENT,
     VPFLAG_INOPERABLE_SMALL,
     VPFLAG_IGNORE_HEIGHT_REQUIREMENT,
-    // Connects this tile to the tile directly above/below it, letting a vehicle
-    // have a permanent second deck. See docs multi-floor-vehicles design §2.
-    VPFLAG_VERTICAL_CONNECTOR,
+    // Marks a climbable opening (ladder/hatch/stairwell) between this tile and the
+    // deck directly above/below it. Governs deck-to-deck TRAVERSAL only; structural
+    // connectivity between decks is carried by frames. See docs
+    // 2026-07-25-vehicle-vertical-frame-connectivity-design.
+    VPFLAG_VERTICAL_TRAVERSAL,
 
     NUM_VPFLAGS
 };

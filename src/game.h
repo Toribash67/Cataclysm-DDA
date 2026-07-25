@@ -325,7 +325,7 @@ class game
          */
         void vertical_move( int z, bool force, bool peeking = false );
         /**
-         * If the avatar is standing on a vehicle tile whose VERTICAL_CONNECTOR permits
+         * If the avatar is standing on a vehicle tile whose VERTICAL_TRAVERSAL permits
          * moving `movez` (+/-1) to the deck above/below, perform that intra-bubble deck
          * change (re-center the reality bubble at the new z, keep x/y, re-board) and
          * return true. Return false -- doing nothing -- when no deck traversal applies,

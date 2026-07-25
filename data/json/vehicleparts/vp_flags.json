@@ -701,9 +701,9 @@
     "type": "json_flag"
   },
   {
-    "id": "VERTICAL_CONNECTOR",
+    "id": "VERTICAL_TRAVERSAL",
     "type": "json_flag",
-    "info": "Connects this tile to the tile directly above/below it, letting a vehicle have a permanent second deck."
+    "info": "A climbable opening (ladder/hatch/stairwell) letting a creature move between this deck and the one directly above or below it."
   },
   {
     "id": "WHEEL_MOUNT_CONCRETE_MIX",
