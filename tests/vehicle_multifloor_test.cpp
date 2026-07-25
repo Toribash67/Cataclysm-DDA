@@ -1,9 +1,14 @@
+#include <sstream>
+
 #include "avatar.h"
 #include "cata_catch.h"
 #include "clzones.h"
 #include "creature_tracker.h"
 #include "damage.h"
+#include "flexbuffer_json.h"
 #include "game.h"
+#include "json.h"
+#include "json_loader.h"
 #include "map.h"
 #include "map_helpers.h"
 #include "monster.h"
@@ -778,4 +783,52 @@ TEST_CASE( "loot_zone_erase_is_per_deck", "[vehicle][multifloor]" )
     veh->loot_zones.erase( tripoint_rel_ms( 0, 0, 0 ) );
     CHECK( veh->loot_zones.count( tripoint_rel_ms( 0, 0, 0 ) ) == 0 );
     CHECK( veh->loot_zones.count( tripoint_rel_ms( 0, 0, 1 ) ) == 1 );
+}
+
+TEST_CASE( "label_z_roundtrip", "[vehicle][multifloor]" )
+{
+    const label l( tripoint_rel_ms( 1, 0, 1 ), "upper" );
+    std::ostringstream os;
+    JsonOut jout( os );
+    l.serialize( jout );
+    CHECK( os.str().find( "\"z\":1" ) != std::string::npos ); // non-zero z persisted
+
+    JsonValue jv = json_loader::from_string( os.str() );
+    label l2;
+    l2.deserialize( jv.get_object() );
+    CHECK( l2 == label( tripoint_rel_ms( 1, 0, 1 ) ) );
+    CHECK( l2.text == "upper" );
+}
+
+TEST_CASE( "single_floor_label_omits_z", "[vehicle][multifloor]" )
+{
+    const label l( tripoint_rel_ms( 1, 0, 0 ), "ground" );
+    std::ostringstream os;
+    JsonOut jout( os );
+    l.serialize( jout );
+    // z==0 must not emit a "z" member (byte-identical guard).
+    CHECK( os.str().find( "\"z\":" ) == std::string::npos );
+}
+
+TEST_CASE( "vehicle_zone_z_roundtrip", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms( 60, 60, 0 ),
+                                     0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    const zone_data z_upper( "u", zone_type_id( "LOOT_UNSORTED" ), your_fac,
+                             false, true, tripoint_abs_ms::zero, tripoint_abs_ms::zero );
+    veh->loot_zones.emplace( tripoint_rel_ms( 1, 0, 1 ), z_upper );
+
+    std::ostringstream os;
+    JsonOut jout( os );
+    veh->serialize( jout );
+    CHECK( os.str().find( "\"z\":1" ) != std::string::npos ); // zone deck persisted
+
+    JsonValue jv = json_loader::from_string( os.str() );
+    vehicle after{ vproto_id() };
+    after.deserialize( jv.get_object() );
+    CHECK( after.loot_zones.count( tripoint_rel_ms( 1, 0, 1 ) ) == 1 );
+    CHECK( after.loot_zones.count( tripoint_rel_ms( 1, 0, 0 ) ) == 0 );
 }
