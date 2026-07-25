@@ -570,8 +570,44 @@ Record the decision in the older design doc and run the full isolated suite as t
 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-07-21-multi-floor-vehicles-design.md` (§1 note)
+- Modify: `doc/JSON/VEHICLES_JSON.md` (lines ~55, ~62 — behavioral rewrite), `doc/JSON/JSON_FLAGS.md` (~1751 — flag entry rewrite)
 
 **Interfaces:** none.
+
+- [ ] **Step 0: Update the user-facing modding docs to the frame-based model**
+
+These currently describe the old connector-gated behavior with the old flag name; they need a *behavioral* rewrite (not a token rename), because after Tasks 2–3 an upper part sits above a **frame**, and the flag governs only climbing.
+
+In `doc/JSON/VEHICLES_JSON.md`, replace on line ~55:
+```markdown
+An optional `"z"` field may also be specified: `{ "x": X, "y": Y, "z": Z, "parts": [ ... ] }`. `Z` is an integer, defaults to `0` when omitted, and selects the deck the part is mounted on: `0` is the ground deck, `1` is the upper deck. A part at `z > 0` must sit directly above a part with the `VERTICAL_CONNECTOR` flag, or be adjacent to another part already placed on the same `z`.
+```
+with:
+```markdown
+An optional `"z"` field may also be specified: `{ "x": X, "y": Y, "z": Z, "parts": [ ... ] }`. `Z` is an integer, defaults to `0` when omitted, and selects the deck the part is mounted on: `0` is the ground deck, `1` is the upper deck. Vertical structure works like horizontal structure: an upper-deck **frame** must sit directly above a structural frame on the deck below, and other parts then attach in-plane to that upper frame. Climbing between decks is separate — it requires a part with the `VERTICAL_TRAVERSAL` flag (e.g. a ladder).
+```
+and replace on line ~62:
+```markdown
+on it. Parts on different decks are connected — for splitting, removal, and
+rendering — only through a `VERTICAL_CONNECTOR` part directly below.
+```
+with:
+```markdown
+on it. Parts on different decks are connected — for splitting, removal, and
+rendering — through the frames stacked between them, exactly as parts are
+connected in the x/y plane. A `VERTICAL_TRAVERSAL` part (ladder/hatch) is what
+lets a creature climb between the decks; it no longer governs structural
+connectivity.
+```
+
+In `doc/JSON/JSON_FLAGS.md`, replace the line ~1751 entry:
+```markdown
+- ```VERTICAL_CONNECTOR``` Connects this tile to the tile directly above it, allowing a vehicle to have a permanent upper deck.  Without it, parts at different z-levels are not considered connected.
+```
+with:
+```markdown
+- ```VERTICAL_TRAVERSAL``` Marks a climbable opening (ladder/hatch/stairwell) letting a creature move between this deck and the one directly above or below it.  Structural connectivity between decks is carried by frames, not this flag.
+```
 
 - [ ] **Step 1: Add the superseding note to the multi-floor design §1**
 
