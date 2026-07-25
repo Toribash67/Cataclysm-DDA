@@ -1320,10 +1320,13 @@ class vehicle
         */
         int avail_part_with_feature( int p, vpart_bitflags f ) const;
         // True iff a character standing on `from_mount` may climb by `dz` (+/-1 only)
-        // to the tile directly above/below: the vertical edge must be gated by a
-        // VERTICAL_TRAVERSAL (up: connector on `from_mount`; down: connector on the
-        // tile below -- same rule as connected_neighbours()), and the destination
-        // mount must carry a BOARDABLE part to stand on. Pure; no state change.
+        // to the tile directly above/below: the climb must be gated by a
+        // VERTICAL_TRAVERSAL part (up: traversal part on `from_mount`; down: traversal
+        // part on the tile below), and the destination mount must carry a BOARDABLE
+        // part to stand on. This gate is independent of connected_neighbours(): structural
+        // deck-to-deck connectivity is carried by frames, climbing by this flag -- the two
+        // deliberately diverge (a frame-stacked deck is one vehicle but not climbable).
+        // Pure; no state change.
         bool allows_deck_traversal( const tripoint_rel_ms &from_mount, int dz ) const;
         /**
         *  Returns index of part at mount point \p pt which has link connection

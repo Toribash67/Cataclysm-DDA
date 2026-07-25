@@ -1294,8 +1294,10 @@ bool vehicle::allows_deck_traversal( const tripoint_rel_ms &from_mount, int dz )
     if( dz != 1 && dz != -1 ) {
         return false;
     }
-    // Connector gates the vertical edge, same asymmetry as connected_neighbours():
-    // climbing up needs a connector on `from_mount`; climbing down needs one on
+    // A VERTICAL_TRAVERSAL part gates climbing. The asymmetry mirrors the SHAPE of
+    // connected_neighbours() (up: from_mount; down: the lower tile), but the gate is
+    // independent: connectivity is frame-based, climbing is traversal-part-based.
+    // Climbing up needs a traversal part on `from_mount`; climbing down needs one on
     // the lower tile (from_mount below).
     const bool gated = dz == 1
                        ? has_traversal_part_at( from_mount )
@@ -1506,8 +1508,8 @@ ret_val<void> vehicle::can_unmount( const vehicle_part &vp_to_remove, bool allow
         return ret_val<void>::make_success(); // wrecks can have more than one structure part, so it's valid for removal
     }
 
-    // find all the vehicle's tiles adjacent to the one we're removing (a co-located
-    // connector is never a structure part, so the up-edge is a no-op here in practice)
+    // find all the vehicle's tiles adjacent to the one we're removing (connected_neighbours
+    // adds the deck above/below when a frame stacks there -- frame-based connectivity)
     std::vector<vehicle_part> adjacent_parts;
     for( const tripoint_rel_ms &np : connected_neighbours( vp_to_remove.mount ) ) {
         const std::vector<int> parts_over_there = parts_at_relative( np, false );
