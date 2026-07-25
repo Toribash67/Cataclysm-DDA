@@ -2114,11 +2114,11 @@ bool vehicle::merge_rackable_vehicle( map *here, vehicle *carry_veh,
                 parts[ carry_map.rack_part ].set_flag( vp_flag::carrying_flag );
             }
 
-            const std::pair<std::unordered_multimap<point_rel_ms, zone_data>::iterator, std::unordered_multimap<point_rel_ms, zone_data>::iterator>
-            zones_on_point = carry_veh->loot_zones.equal_range( carry_map.old_mount );
-            for( std::unordered_multimap<point_rel_ms, zone_data>::const_iterator it = zones_on_point.first;
+            const std::pair<std::unordered_multimap<tripoint_rel_ms, zone_data>::iterator, std::unordered_multimap<tripoint_rel_ms, zone_data>::iterator>
+            zones_on_point = carry_veh->loot_zones.equal_range( tripoint_rel_ms( carry_map.old_mount, 0 ) );
+            for( std::unordered_multimap<tripoint_rel_ms, zone_data>::const_iterator it = zones_on_point.first;
                  it != zones_on_point.second; ++it ) {
-                new_zones.emplace( carry_map.carry_mount, it->second );
+                new_zones.emplace( tripoint_rel_ms( carry_map.carry_mount, 0 ), it->second );
             }
         }
 
@@ -2426,15 +2426,13 @@ bool vehicle::remove_part( vehicle_part &vp, RemovePartHandler &handler )
     }
 
     //Remove loot zone if Cargo was removed.
-    // loot_zones is keyed by planar point_rel_ms (save-format field); widening
-    // it to distinguish decks is deferred to a later milestone.
-    const auto lz_iter = loot_zones.find( vp.mount.xy() );
+    const auto lz_iter = loot_zones.find( vp.mount );
     const bool no_zone = lz_iter != loot_zones.end();
 
     if( no_zone && vpi.has_flag( VPFLAG_CARGO ) ) {
         // Using the key here (instead of the iterator) will remove all zones on
         // this mount points regardless of how many there are
-        loot_zones.erase( vp.mount.xy() );
+        loot_zones.erase( vp.mount );
         zones_dirty = true;
     }
     vp.removed = true;
@@ -2445,10 +2443,9 @@ bool vehicle::remove_part( vehicle_part &vp, RemovePartHandler &handler )
     const int vp_idx = index_of_part( &vp, /* include_removed = */ true );
     handler.removed( &handler.get_map_ref(), *this, vp_idx );
 
-    // labels is likewise keyed by planar point_rel_ms; same deferral as loot_zones above.
-    const point_rel_ms vp_mount = vp.mount.xy();
+    const tripoint_rel_ms vp_mount = vp.mount;
     const auto iter = labels.find( label( vp_mount ) );
-    if( iter != labels.end() && parts_at_relative( tripoint_rel_ms( vp_mount, 0 ), false ).empty() ) {
+    if( iter != labels.end() && parts_at_relative( vp_mount, false ).empty() ) {
         labels.erase( iter );
     }
 
@@ -2847,31 +2844,24 @@ bool vehicle::split_vehicles( map &here,
             new_vehicle->parts.emplace_back( vp_mov );
             new_vehicle->parts.back().mount = new_mount;
 
-            // NOTE: labels and loot_zones are keyed by planar point_rel_ms (a
-            // save-format field), so this transfer matches by (x,y) only. For a
-            // multi-floor vehicle with zones/labels on the same (x,y) on different
-            // decks, this can move/erase the wrong deck's entry -- widening the keys
-            // to distinguish decks is deferred to a later milestone (the same
-            // limitation already noted at remove_part). Single-floor vehicles have
-            // one z per column, so they are unaffected.
             // remove labels associated with the mov_part
-            const auto iter = labels.find( label( cur_mount.xy() ) );
+            const auto iter = labels.find( label( cur_mount ) );
             if( iter != labels.end() ) {
                 std::string label_str = iter->text;
                 labels.erase( iter );
-                new_labels.insert( label( new_mount.xy(), label_str ) );
+                new_labels.insert( label( new_mount, label_str ) );
             }
             // Prepare the zones to be moved to the new vehicle
-            const std::pair<std::unordered_multimap<point_rel_ms, zone_data>::iterator, std::unordered_multimap<point_rel_ms, zone_data>::iterator>
-            zones_on_point = loot_zones.equal_range( cur_mount.xy() );
-            for( std::unordered_multimap<point_rel_ms, zone_data>::const_iterator lz_iter =
+            const std::pair<std::unordered_multimap<tripoint_rel_ms, zone_data>::iterator, std::unordered_multimap<tripoint_rel_ms, zone_data>::iterator>
+            zones_on_point = loot_zones.equal_range( cur_mount );
+            for( std::unordered_multimap<tripoint_rel_ms, zone_data>::const_iterator lz_iter =
                      zones_on_point.first;
                  lz_iter != zones_on_point.second; ++lz_iter ) {
-                new_zones.emplace( new_mount.xy(), lz_iter->second );
+                new_zones.emplace( new_mount, lz_iter->second );
             }
 
             // Erasing on the key removes all the zones from the point at once
-            loot_zones.erase( cur_mount.xy() );
+            loot_zones.erase( cur_mount );
 
             // The zone manager will be updated when we next interact with it through get_vehicle_zones
             zones_dirty = true;
@@ -2888,7 +2878,7 @@ bool vehicle::split_vehicles( map &here,
         // We want to create the vehicle zones after we've setup the parts
         // because we need only to move the zone once per mount, not per part. If we move per
         // part, we will end up with duplicates of the zone per part on the same mount
-        for( std::pair<point_rel_ms, zone_data> zone : new_zones ) {
+        for( std::pair<tripoint_rel_ms, zone_data> zone : new_zones ) {
             zone_manager::get_manager().create_vehicle_loot_zone( *new_vehicle, zone.first, zone.second );
         }
 
@@ -3333,7 +3323,8 @@ std::vector<vehicle_part *> vehicle::get_parts_at( const tripoint_abs_ms &pos,
 
 std::optional<std::string> vpart_position::get_label() const
 {
-    const auto it = vehicle().labels.find( label( mount_pos() ) );
+    const tripoint_rel_ms m = vehicle().part( part_index() ).mount;
+    const auto it = vehicle().labels.find( label( m ) );
     if( it == vehicle().labels.end() ) {
         return std::nullopt;
     }
@@ -3347,13 +3338,14 @@ std::optional<std::string> vpart_position::get_label() const
 void vpart_position::set_label( const std::string &text ) const
 {
     std::set<label> &labels = vehicle().labels;
-    const auto it = labels.find( label( mount_pos() ) );
+    const tripoint_rel_ms m = vehicle().part( part_index() ).mount;
+    const auto it = labels.find( label( m ) );
     // TODO: empty text should remove the label instead of just storing an empty string, see get_label
     if( it == labels.end() ) {
-        labels.insert( label( mount_pos(), text ) );
+        labels.insert( label( m, text ) );
     } else {
         // labels should really be a map
-        labels.insert( labels.erase( it ), label( mount_pos(), text ) );
+        labels.insert( labels.erase( it ), label( m, text ) );
     }
 }
 
@@ -7879,15 +7871,19 @@ void vehicle::shift_parts( map &here, const point_rel_ms &delta )
         elem.mount -= tripoint_rel_ms( delta.x(), delta.y(), 0 );
     }
 
+    // delta is planar; widen it to a 3D offset with z=0 so subtracting it from a
+    // label/loot_zone key leaves the key's z (deck) unchanged.
+    const tripoint_rel_ms delta3 = tripoint_rel_ms( delta, 0 );
+
     decltype( labels ) new_labels;
     for( const label &l : labels ) {
-        new_labels.insert( label( l - delta.raw(), l.text ) );
+        new_labels.insert( label( l - delta3, l.text ) );
     }
     labels = new_labels;
 
     decltype( loot_zones ) new_zones;
     for( auto const &z : loot_zones ) {
-        new_zones.emplace( z.first - delta.raw(), z.second );
+        new_zones.emplace( z.first - delta3, z.second );
     }
     loot_zones = new_zones;
 

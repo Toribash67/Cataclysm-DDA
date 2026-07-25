@@ -704,10 +704,11 @@ class turret_data
  * Struct used for storing labels
  * (easier to json opposed to a std::map<point_rel_ms, std::string>)
  */
-struct label : public point_rel_ms {
+struct label : public tripoint_rel_ms {
     label() = default;
-    explicit label( const point_rel_ms &p ) : point_rel_ms( p ) {}
-    label( const point_rel_ms &p, std::string text ) : point_rel_ms( p ), text( std::move( text ) ) {}
+    explicit label( const tripoint_rel_ms &p ) : tripoint_rel_ms( p ) {}
+    label( const tripoint_rel_ms &p, std::string text ) : tripoint_rel_ms( p ),
+        text( std::move( text ) ) {}
 
     std::string text;
 
@@ -2389,7 +2390,7 @@ class vehicle
         // The value is negative.
         std::map<itype_id, units::energy> fuel_remainder;
         std::map<itype_id, units::energy> fuel_used_last_turn;
-        std::unordered_multimap<point_rel_ms, zone_data> loot_zones;
+        std::unordered_multimap<tripoint_rel_ms, zone_data> loot_zones;
         active_item_cache active_items; // NOLINT(cata-serialize)
         // a magic vehicle, powered by magic.gif
         bool magic = false;

@@ -101,6 +101,25 @@ static const trait_id trait_STRONGBACK( "STRONGBACK" );
 
 static const vpart_id vpart_ap_wall_wiring( "ap_wall_wiring" );
 
+int veh_interact_clamp_deck( int desired, int min_z, int max_z )
+{
+    return std::clamp( desired, min_z, max_z + 1 );
+}
+
+tripoint_rel_ms veh_interact_install_mount( const std::vector<int> &activity_values )
+{
+    const int z = activity_values.size() > 7 ? activity_values[7] : 0;
+    return tripoint_rel_ms( activity_values[4], activity_values[5], z );
+}
+
+std::pair<int, std::optional<int>> veh_interact_preview_decks( int sel_z )
+{
+    if( sel_z > 0 ) {
+        return { sel_z, sel_z - 1 };
+    }
+    return { sel_z, std::nullopt };
+}
+
 static std::string status_color( bool status )
 {
     return status ? "<color_green>" : "<color_red>";
@@ -187,6 +206,7 @@ player_activity veh_interact::serialize_activity( map &here )
     res.values.push_back( -dd.x() );   // values[4]
     res.values.push_back( -dd.y() );   // values[5]
     res.values.push_back( veh->index_of_part( vpt ) ); // values[6]
+    res.values.push_back( sel_z ); // values[7] : deck to install on
     res.str_values.emplace_back( vp->id.str() );
     res.str_values.emplace_back( "" ); // previously stored the part variant, now obsolete
     res.targets.emplace_back( std::move( refill_target ) );
@@ -284,6 +304,8 @@ veh_interact::veh_interact( map &here, vehicle &veh, const point_rel_ms &p )
     main_context.register_action( "CHANGE_SHAPE" );
     main_context.register_action( "ASSIGN_CREW" );
     main_context.register_action( "RELABEL" );
+    main_context.register_action( "SELECT_Z_UP" );
+    main_context.register_action( "SELECT_Z_DOWN" );
     main_context.register_action( "PREV_TAB" );
     main_context.register_action( "NEXT_TAB" );
     main_context.register_action( "OVERVIEW_DOWN" );
@@ -579,6 +601,12 @@ void veh_interact::do_main_loop( map &here )
                     popup( _( "You cannot relabel this vehicle as it is owned by: %s." ), _( owner_fac->name ) );
                 }
             }
+        } else if( action == "SELECT_Z_UP" ) {
+            sel_z = veh_interact_clamp_deck( sel_z + 1, veh->mount_min_z(), veh->mount_max_z() );
+            move_cursor( here, point_rel_ms::zero );
+        } else if( action == "SELECT_Z_DOWN" ) {
+            sel_z = veh_interact_clamp_deck( sel_z - 1, veh->mount_min_z(), veh->mount_max_z() );
+            move_cursor( here, point_rel_ms::zero );
         } else if( action == "FUEL_LIST_DOWN" ) {
             move_fuel_cursor( here, 1 );
         } else if( action == "FUEL_LIST_UP" ) {
@@ -906,7 +934,7 @@ bool veh_interact::update_part_requirements( map &here )
     }
     nmsg += res.second;
 
-    const ret_val<void> can_mount = veh->can_mount( -dd, *sel_vpart_info );
+    const ret_val<void> can_mount = veh->can_mount( tripoint_rel_ms( -dd, sel_z ), *sel_vpart_info );
     if( !can_mount.success() ) {
         ok = false;
         nmsg += _( "<color_white>Cannot install due to:</color>\n> " ) +
@@ -2163,7 +2191,7 @@ std::pair<bool, std::string> veh_interact::calc_lift_requirements( map &here, co
 int veh_interact::part_at( const point_rel_ms &d )
 {
     const point_rel_ms vd{ -dd + d.rotate( 1 ) };
-    return veh->part_displayed_at( vd );
+    return veh->part_displayed_at( tripoint_rel_ms( vd, sel_z ) );
 }
 
 /**
@@ -2209,7 +2237,8 @@ void veh_interact::move_cursor( map &here, const point_rel_ms &d, int dstart_at 
     cpart = part_at( point_rel_ms::zero );
     const point_rel_ms vd = -dd;
     const point_rel_ms q = veh->coord_translate( vd );
-    const tripoint_bub_ms vehp = veh->pos_bub( here ) + q;
+    tripoint_bub_ms vehp = veh->pos_bub( here ) + q;
+    vehp.z() += sel_z;
     const bool has_critter = get_creature_tracker().creature_at( vehp );
     terrain_here = here.ter( vehp ).obj();
     bool obstruct = here.impassable_ter_furn( vehp );
@@ -2344,11 +2373,29 @@ void veh_interact::display_veh( map &here )
     nc_color col_at_cursor = c_black;
     int sym_at_cursor = ' ';
     //Iterate over structural parts so we only hit each square once
+    const auto [primary_z, ref_z] = veh_interact_preview_decks( sel_z );
+
+    // reference deck (deck below), dimmed, for build-support orientation
+    if( ref_z ) {
+        for( const int idx : veh->all_parts_at_location( "structure" ) ) {
+            const vehicle_part &vp = veh->part( idx );
+            if( vp.mount.z() != *ref_z ) {
+                continue;
+            }
+            const vpart_display vd = veh->get_display_of_tile( vp.mount, false, false );
+            const point_rel_ms q = ( vp.mount.xy() + dd ).rotate( 3 );
+            mvwputch( w_disp, h_size + q.raw(), c_dark_gray, vd.symbol_curses );
+        }
+    }
+
+    // primary deck (the one being edited)
     for( const int structural_part_idx : veh->all_parts_at_location( "structure" ) ) {
         const vehicle_part &vp = veh->part( structural_part_idx );
-        const vpart_display vd = veh->get_display_of_tile( vp.mount.xy(), false, false );
+        if( vp.mount.z() != primary_z ) {
+            continue;
+        }
+        const vpart_display vd = veh->get_display_of_tile( vp.mount, false, false );
         const point_rel_ms q = ( vp.mount.xy() + dd ).rotate( 3 );
-
         if( q != point_rel_ms::zero ) { // cursor is not on this part
             mvwputch( w_disp, h_size + q.raw(), vd.color, vd.symbol_curses );
             continue;
@@ -2366,6 +2413,9 @@ void veh_interact::display_veh( map &here )
         col_at_cursor = red_background( col_at_cursor );
     }
     mvwputch( w_disp, pt_disp, col_at_cursor, sym_at_cursor );
+    if( sel_z != 0 ) {
+        mvwprintz( w_disp, point( 0, getmaxy( w_disp ) - 1 ), c_yellow, _( "Deck %d" ), sel_z );
+    }
     wnoutrefresh( w_disp );
 }
 
@@ -3073,7 +3123,7 @@ void veh_interact::complete_vehicle( map &here, Character &you )
     }
 
     vehicle &veh = ovp->vehicle();
-    const point_rel_ms d( you.activity.values[4], you.activity.values[5] );
+    const tripoint_rel_ms d = veh_interact_install_mount( you.activity.values );
     const vpart_id part_id( you.activity.str_values[0] );
     const vpart_info &vpinfo = part_id.obj();
 
@@ -3120,8 +3170,8 @@ void veh_interact::complete_vehicle( map &here, Character &you )
             you.invalidate_crafting_inventory();
             const int partnum = veh.install_part( here, d, part_id, std::move( base ), installed_with );
             if( partnum < 0 ) {
-                debugmsg( "complete_vehicle install part fails dx=%d dy=%d id=%s",
-                          d.x(), d.y(), part_id.c_str() );
+                debugmsg( "complete_vehicle install part fails dx=%d dy=%d dz=%d id=%s",
+                          d.x(), d.y(), d.z(), part_id.c_str() );
                 break;
             }
             ::vehicle_part &vp_new = veh.part( partnum );
@@ -3131,7 +3181,7 @@ void veh_interact::complete_vehicle( map &here, Character &you )
 
             // Need map-relative coordinates to compare to output of look_around.
             // Need to call coord_translate() directly since it's a new part.
-            const point_rel_ms q = veh.coord_translate( d );
+            const point_rel_ms q = veh.coord_translate( d.xy() );
 
             if( vpinfo.has_flag( VPFLAG_CONE_LIGHT ) ||
                 vpinfo.has_flag( VPFLAG_WIDE_CONE_LIGHT ) ||
@@ -3139,7 +3189,7 @@ void veh_interact::complete_vehicle( map &here, Character &you )
                 orient_part( here, &veh, vpinfo, partnum, q );
             }
 
-            const tripoint_bub_ms vehp = veh.pos_bub( here ) + tripoint_rel_ms( q, 0 );
+            const tripoint_bub_ms vehp = veh.pos_bub( here ) + tripoint_rel_ms( q, d.z() );
             // TODO: allow boarding for non-players as well.
             Character *const pl = get_creature_tracker().creature_at<Character>( vehp );
             if( vpinfo.has_flag( VPFLAG_BOARDABLE ) && pl ) {

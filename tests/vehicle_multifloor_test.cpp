@@ -1,8 +1,14 @@
+#include <sstream>
+
 #include "avatar.h"
 #include "cata_catch.h"
+#include "clzones.h"
 #include "creature_tracker.h"
 #include "damage.h"
+#include "flexbuffer_json.h"
 #include "game.h"
+#include "json.h"
+#include "json_loader.h"
 #include "map.h"
 #include "map_helpers.h"
 #include "monster.h"
@@ -12,10 +18,12 @@
 #include "veh_type.h"
 #include "type_id.h"
 #include "coordinates.h"
+#include "veh_interact.h"
 
 static const vproto_id vehicle_prototype_car( "car" );
 static const damage_type_id damage_bash( "bash" );
 static const mtype_id mon_zombie( "mon_zombie" );
+// your_fac is declared in clzones.h (included above)
 
 TEST_CASE( "vehicle_prototype_parts_default_to_z_zero", "[vehicle][multifloor]" )
 {
@@ -739,4 +747,161 @@ TEST_CASE( "removing_one_of_several_frame_bridges_does_not_split", "[vehicle][mu
     }
     // All four original upper tiles (0,0)/(0,1)/(1,0)/(1,1) remain on the one vehicle.
     CHECK( upper_tiles >= 4 );
+}
+
+// --- M6 Workstream A: 3D zone/label keys ---
+
+TEST_CASE( "labels_on_different_decks_are_distinct", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms( 60, 60, 0 ),
+                                     0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    // Same (x,y), different deck. Under 2D keys the set treats these as equal and
+    // silently keeps only one; under 3D keys both coexist.
+    veh->labels.insert( label( tripoint_rel_ms( 0, 0, 0 ), "ground" ) );
+    veh->labels.insert( label( tripoint_rel_ms( 0, 0, 1 ), "upper" ) );
+    CHECK( veh->labels.size() == 2 );
+    CHECK( veh->labels.count( label( tripoint_rel_ms( 0, 0, 0 ) ) ) == 1 );
+    CHECK( veh->labels.count( label( tripoint_rel_ms( 0, 0, 1 ) ) ) == 1 );
+}
+
+TEST_CASE( "loot_zone_erase_is_per_deck", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms( 60, 60, 0 ),
+                                     0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    const zone_data z_ground( "g", zone_type_id( "LOOT_UNSORTED" ), your_fac,
+                              false, true, tripoint_abs_ms::zero, tripoint_abs_ms::zero );
+    const zone_data z_upper = z_ground;
+    veh->loot_zones.emplace( tripoint_rel_ms( 0, 0, 0 ), z_ground );
+    veh->loot_zones.emplace( tripoint_rel_ms( 0, 0, 1 ), z_upper );
+    // Erasing the ground-deck key must leave the upper-deck zone intact (2D erase
+    // by (0,0) would remove both).
+    veh->loot_zones.erase( tripoint_rel_ms( 0, 0, 0 ) );
+    CHECK( veh->loot_zones.count( tripoint_rel_ms( 0, 0, 0 ) ) == 0 );
+    CHECK( veh->loot_zones.count( tripoint_rel_ms( 0, 0, 1 ) ) == 1 );
+}
+
+TEST_CASE( "label_z_roundtrip", "[vehicle][multifloor]" )
+{
+    const label l( tripoint_rel_ms( 1, 0, 1 ), "upper" );
+    std::ostringstream os;
+    JsonOut jout( os );
+    l.serialize( jout );
+    CHECK( os.str().find( "\"z\":1" ) != std::string::npos ); // non-zero z persisted
+
+    JsonValue jv = json_loader::from_string( os.str() );
+    label l2;
+    l2.deserialize( jv.get_object() );
+    CHECK( l2 == label( tripoint_rel_ms( 1, 0, 1 ) ) );
+    CHECK( l2.text == "upper" );
+}
+
+TEST_CASE( "single_floor_label_omits_z", "[vehicle][multifloor]" )
+{
+    const label l( tripoint_rel_ms( 1, 0, 0 ), "ground" );
+    std::ostringstream os;
+    JsonOut jout( os );
+    l.serialize( jout );
+    // z==0 must not emit a "z" member (byte-identical guard).
+    CHECK( os.str().find( "\"z\":" ) == std::string::npos );
+}
+
+TEST_CASE( "vehicle_zone_z_roundtrip", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms( 60, 60, 0 ),
+                                     0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    const zone_data z_upper( "u", zone_type_id( "LOOT_UNSORTED" ), your_fac,
+                             false, true, tripoint_abs_ms::zero, tripoint_abs_ms::zero );
+    veh->loot_zones.emplace( tripoint_rel_ms( 1, 0, 1 ), z_upper );
+
+    std::ostringstream os;
+    JsonOut jout( os );
+    veh->serialize( jout );
+    CHECK( os.str().find( "\"z\":1" ) != std::string::npos ); // zone deck persisted
+
+    JsonValue jv = json_loader::from_string( os.str() );
+    vehicle after{ vproto_id() };
+    after.deserialize( jv.get_object() );
+    CHECK( after.loot_zones.count( tripoint_rel_ms( 1, 0, 1 ) ) == 1 );
+    CHECK( after.loot_zones.count( tripoint_rel_ms( 1, 0, 0 ) ) == 0 );
+}
+
+TEST_CASE( "multideck_zones_labels_survive_planar_rekey", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+
+    // Same (x,y), different deck: the exact collision 2D keys corrupt.
+    veh->labels.insert( label( tripoint_rel_ms( 0, 0, 0 ), "ground" ) );
+    veh->labels.insert( label( tripoint_rel_ms( 0, 0, 1 ), "upper" ) );
+    const zone_data zd( "z", zone_type_id( "LOOT_UNSORTED" ), your_fac,
+                        false, true, tripoint_abs_ms::zero, tripoint_abs_ms::zero );
+    veh->loot_zones.emplace( tripoint_rel_ms( 0, 0, 0 ), zd );
+    veh->loot_zones.emplace( tripoint_rel_ms( 0, 0, 1 ), zd );
+    REQUIRE( veh->labels.size() == 2 );
+    REQUIRE( veh->loot_zones.size() == 2 );
+
+    // shift_parts re-keys every label and zone by a planar delta. Deck (z) must be
+    // preserved and the two decks must stay distinct (2D keys would collapse them).
+    veh->shift_parts( here, point_rel_ms( 1, 0 ) );
+
+    REQUIRE( veh->labels.size() == 2 );
+    int ground_z = -99;
+    int upper_z = -99;
+    for( const label &l : veh->labels ) {
+        if( l.text == "ground" ) {
+            ground_z = l.z();
+        } else if( l.text == "upper" ) {
+            upper_z = l.z();
+        }
+    }
+    CHECK( ground_z == 0 ); // ground label stayed on the ground deck
+    CHECK( upper_z == 1 );  // upper label stayed on the upper deck
+
+    REQUIRE( veh->loot_zones.size() == 2 );
+    int zone_z_sum = 0;
+    for( const auto &z : veh->loot_zones ) {
+        zone_z_sum += z.first.z();
+    }
+    CHECK( zone_z_sum == 1 ); // exactly one zone at z=0 and one at z=1
+}
+
+TEST_CASE( "veh_interact_deck_clamp", "[vehicle][multifloor]" )
+{
+    // Single-floor vehicle: min=max=0 -> may step to 1 (start a deck) but not below 0.
+    CHECK( veh_interact_clamp_deck( 1, 0, 0 ) == 1 );
+    CHECK( veh_interact_clamp_deck( 2, 0, 0 ) == 1 );
+    CHECK( veh_interact_clamp_deck( -1, 0, 0 ) == 0 );
+    // Two-floor vehicle: min=0,max=1 -> up to 2, down to 0.
+    CHECK( veh_interact_clamp_deck( 3, 0, 1 ) == 2 );
+    CHECK( veh_interact_clamp_deck( -5, 0, 1 ) == 0 );
+    CHECK( veh_interact_clamp_deck( 1, 0, 1 ) == 1 );
+}
+
+TEST_CASE( "veh_interact_install_mount_from_activity", "[vehicle][multifloor]" )
+{
+    // values[4],values[5] = -dd (xy mount); values[7] = sel_z.
+    std::vector<int> v{ 0, 0, 0, 0, 2, 3, 0, 1 };
+    CHECK( veh_interact_install_mount( v ) == tripoint_rel_ms( 2, 3, 1 ) );
+    // Back-compat: an activity queued before M6 has no values[7] -> z 0.
+    std::vector<int> old{ 0, 0, 0, 0, 2, 3, 0 };
+    CHECK( veh_interact_install_mount( old ) == tripoint_rel_ms( 2, 3, 0 ) );
+}
+
+TEST_CASE( "veh_interact_preview_decks", "[vehicle][multifloor]" )
+{
+    CHECK( veh_interact_preview_decks( 0 ) == std::pair<int, std::optional<int>> { 0, std::nullopt } );
+    CHECK( veh_interact_preview_decks( 1 ) == std::pair<int, std::optional<int>> { 1, 0 } );
+    CHECK( veh_interact_preview_decks( 2 ) == std::pair<int, std::optional<int>> { 2, 1 } );
 }

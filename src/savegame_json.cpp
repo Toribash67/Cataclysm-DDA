@@ -3411,6 +3411,9 @@ void label::deserialize( const JsonObject &data )
     data.allow_omitted_members();
     data.read( "x", x() );
     data.read( "y", y() );
+    int zz = 0;
+    data.read( "z", zz );
+    z() = zz;
     data.read( "text", text );
 }
 
@@ -3419,6 +3422,9 @@ void label::serialize( JsonOut &json ) const
     json.start_object();
     json.member( "x", x() );
     json.member( "y", y() );
+    if( z() != 0 ) {
+        json.member( "z", z() );
+    }
     json.member( "text", text );
     json.end_object();
 }
@@ -3524,12 +3530,15 @@ void vehicle::deserialize( const JsonObject &data )
     refresh( );
 
     point p;
+    int pz = 0;
     zone_data zd;
     for( JsonObject sdata : data.get_array( "zones" ) ) {
         sdata.allow_omitted_members();
         sdata.read( "point", p );
+        pz = 0;
+        sdata.read( "z", pz );
         sdata.read( "zone", zd );
-        loot_zones.emplace( p, zd );
+        loot_zones.emplace( tripoint_rel_ms( p.x, p.y, pz ), zd );
     }
     data.read( "other_tow_point", tow_data.other_towing_point );
     // Note that it's possible for a vehicle to be loaded midway
@@ -3603,7 +3612,10 @@ void vehicle::serialize( JsonOut &json ) const
     json.start_array();
     for( auto const &z : loot_zones ) {
         json.start_object();
-        json.member( "point", z.first );
+        json.member( "point", z.first.xy() );
+        if( z.first.z() != 0 ) {
+            json.member( "z", z.first.z() );
+        }
         json.member( "zone", z.second );
         json.end_object();
     }
