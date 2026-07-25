@@ -651,3 +651,28 @@ TEST_CASE( "upper_deck_precalc_z_tracks_lower_deck_over_ramp", "[vehicle][multif
     }
     deck_gap_holds();
 }
+
+// M5 §5: the mass center stays PLANAR by design — calc_mass_center accumulates
+// only x/y, so upper-deck mass folds into the same (x,y) center a one-floor
+// vehicle of equal total mass/footprint would have, with no z term feeding into
+// handling. local_center_of_mass returning a point_rel_ms (2D, not tripoint_rel_ms)
+// is itself the structural proof; this test pins the value inside the bus's
+// mount footprint so a later "add z to the mass center" change trips a red test.
+TEST_CASE( "two_floor_bus_mass_center_is_planar", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 100, 0 );
+    REQUIRE( veh != nullptr );
+
+    const point_rel_ms com = veh->local_center_of_mass( here );
+    CAPTURE( com );
+    CHECK( std::isfinite( com.x() ) );
+    CHECK( std::isfinite( com.y() ) );
+    // Footprint bounds per the test_bus_2floor prototype: x in [-1, 2], y in [0, 1].
+    CHECK( com.x() >= -1 );
+    CHECK( com.x() <= 2 );
+    CHECK( com.y() >= 0 );
+    CHECK( com.y() <= 1 );
+}
