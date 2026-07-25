@@ -757,12 +757,12 @@ bool vehicle::collision( map &here, std::vector<veh_collision> &colls,
         // Coordinates of where part will go due to movement (dx/dy/dz)
         //  and turning (precalc[1])
         const tripoint_abs_ms dsp = vp.next_pos;
-        veh_collision coll = part_collision( here, p, dsp, just_detect, bash_floor );
+        veh_collision coll = part_collision( here, p, dsp, just_detect, bash_floor, vertical );
         if( coll.type == veh_coll_nothing && info.has_flag( VPFLAG_ROTOR ) ) {
             size_t radius = static_cast<size_t>( std::round( info.rotor_info->rotor_diameter / 2.0f ) );
             for( const tripoint_bub_ms &rotor_point : here.points_in_radius( here.get_bub( dsp ), radius ) ) {
                 veh_collision rotor_coll = part_collision( here, p, here.get_abs( rotor_point ), just_detect,
-                                           false );
+                                           false, vertical );
                 if( rotor_coll.type != veh_coll_nothing ) {
                     coll = rotor_coll;
                     if( just_detect ) {
@@ -834,12 +834,15 @@ static void terrain_collision_data( map &here, const tripoint_bub_ms &p, bool ba
 }
 
 veh_collision vehicle::part_collision( map &here, int part, const tripoint_abs_ms &p,
-                                       bool just_detect, bool bash_floor )
+                                       bool just_detect, bool bash_floor, bool vertical )
 {
     tripoint_bub_ms pos = here.get_bub( p );
-    // Vertical collisions need to be handled differently
-    // All collisions have to be either fully vertical or fully horizontal for now
-    const bool vert_coll = bash_floor || p.z() != sm_pos.z();
+    // Vertical collisions need to be handled differently. `vertical` reflects the MOVE
+    // direction (vehicle::collision already split any z-diagonal into pure-horizontal +
+    // pure-vertical passes), not a part's absolute z — an upper-deck part moving horizontally
+    // is a horizontal collision. bash_floor also forces the vertical (floor-bash) path.
+    // All collisions have to be either fully vertical or fully horizontal for now.
+    const bool vert_coll = bash_floor || vertical;
     Creature *critter = get_creature_tracker().creature_at( p, true );
     Character *ph = dynamic_cast<Character *>( critter );
 

@@ -58,7 +58,13 @@ static bool TestForVehicleTeleportCollision( vehicle &veh, map &here, map *dest,
             dest->load( project_to<coords::sm>( dp + rel_pos ), false );
         }
 
-        veh_collision coll = veh.part_collision( *dest, part.part_index(), dp + rel_pos, true, false );
+        // A teleport is instantaneous; its move for the whole vehicle is dp - pos_abs(), so it is
+        // "vertical" iff the destination crosses the vehicle's current z-level — a per-vehicle test,
+        // NOT a per-part one (verticality follows the move, not a part's absolute z). This value is
+        // currently inert here (the call passes just_detect=true, and ret.type doesn't depend on
+        // coll_velocity), but keep it move-direction-faithful so it stays correct if that changes.
+        veh_collision coll = veh.part_collision( *dest, part.part_index(), dp + rel_pos, true, false,
+                             dp.z() != veh.pos_abs().z() );
         if( coll.type != veh_coll_nothing ) {
             tripoint_abs_ms point = dp + rel_pos;
             add_msg_debug( debugmode::DF_VEHICLE_MOVE, "Issue teleporting to abs_ms %s, hit %s",

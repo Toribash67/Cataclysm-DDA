@@ -525,3 +525,171 @@ TEST_CASE( "avatar_boards_upper_deck_seat", "[vehicle][multifloor]" )
     REQUIRE( vp );
     CHECK( vp->part_with_feature( "SEAT", false ).has_value() );
 }
+
+TEST_CASE( "two_floor_bus_upper_deck_collides_horizontally", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map(); // z-levels 0 and 1 present in the bubble
+
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 100, 0 );
+    REQUIRE( veh != nullptr );
+    veh->check_falling_or_floating();
+    REQUIRE_FALSE( veh->is_in_water() );
+
+    // Pick the front-most (max abs x) upper-deck (mount.z == 1) structural part; the tile one
+    // step ahead (+x) of it at the upper deck's own z-level is outside our footprint, so a wall
+    // there is an obstacle only the upper deck can hit.
+    int upper_idx = -1;
+    tripoint_bub_ms upper_bub;
+    for( const vpart_reference &vp : veh->get_all_parts() ) {
+        if( vp.part().removed || vp.part().is_fake ) {
+            continue;
+        }
+        if( vp.info().location != "structure" || vp.part().mount.z() != 1 ) {
+            continue;
+        }
+        const tripoint_bub_ms p = vp.pos_bub( here );
+        if( upper_idx < 0 || p.x() > upper_bub.x() ) {
+            upper_idx = vp.part_index();
+            upper_bub = p;
+        }
+    }
+    REQUIRE( upper_idx >= 0 );
+    REQUIRE( upper_bub.z() == 1 ); // the upper deck really is one z above the vehicle's base
+
+    const tripoint_bub_ms wall_bub = upper_bub + tripoint_rel_ms( 1, 0, 0 );
+    here.ter_set( wall_bub, ter_id( "t_wall" ) );
+    REQUIRE( here.impassable( wall_bub ) );
+
+    // Ask part_collision (the same entry teleport uses) to resolve that upper-deck part moving
+    // horizontally into the wall tile. `vertical == false` is the truth for a horizontal move.
+    // Pre-fix, part_collision ignored the caller and derived verticality from the part's absolute
+    // z (z=1 != vehicle z=0 -> "vertical"), read vertical_velocity (0), and early-returned nothing
+    // -> the deck phased through. The fix honours the passed move direction, so this is a real hit.
+    veh->velocity = 400;
+    veh->vertical_velocity = 0;
+    const veh_collision coll = veh->part_collision( here, upper_idx, here.get_abs( wall_bub ),
+                               false, false, false );
+    CHECK( coll.type != veh_coll_nothing );
+}
+
+TEST_CASE( "wheels_touch_ground_only_on_deck_zero", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 100, 0 );
+    REQUIRE( veh != nullptr );
+
+    REQUIRE_FALSE( veh->wheelcache.empty() );
+    for( const int w : veh->wheelcache ) {
+        CAPTURE( w );
+        CHECK( veh->part( w ).mount.z() == 0 );
+    }
+}
+
+// M5 §6.3 cross term (mount.z x ramp): while a two-floor vehicle is transiting
+// a ramp, advance_precalc_mounts records the ramp displacement into the
+// transient precalc_z_delta (vehicle.cpp ~8867-8892), and precalc_mounts
+// reseeds precalc.z = mount.z + precalc_z_delta (vehicle.cpp ~3807). This
+// proves that composition holds for the upper deck too: at every tick, each
+// upper-deck part must sit exactly one z above the lower-deck part sharing
+// its (x,y) mount, i.e. the deck gap is invariant to ramp displacement.
+TEST_CASE( "upper_deck_precalc_z_tracks_lower_deck_over_ramp", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+
+    // Build a short up-ramp along the drive axis (mirror vehicle_ramp_test's terrain).
+    const int y = 60;
+    const int lowx = 66;
+    const int highx = 67;
+    here.ter_set( tripoint_bub_ms( lowx,  y, 0 ), ter_id( "t_ramp_up_low" ) );
+    here.ter_set( tripoint_bub_ms( highx, y, 0 ), ter_id( "t_ramp_up_high" ) );
+    here.ter_set( tripoint_bub_ms( lowx,  y, 1 ), ter_id( "t_ramp_down_low" ) );
+    here.ter_set( tripoint_bub_ms( highx, y, 1 ), ter_id( "t_ramp_down_high" ) );
+
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, y, 0 ), 0_degrees, 100, 0 );
+    REQUIRE( veh != nullptr );
+    veh->check_falling_or_floating();
+    veh->tags.insert( "IN_CONTROL_OVERRIDE" );
+    veh->engine_on = true;
+    veh->cruise_velocity = 400;
+    veh->velocity = 400;
+
+    auto deck_gap_holds = [&]() {
+        // Map every occupied (x,y) mount to the set of z's present there.
+        for( const vpart_reference &up : veh->get_all_parts() ) {
+            const vehicle_part &pu = up.part();
+            if( pu.removed || pu.is_fake || pu.mount.z() != 1 ) {
+                continue;
+            }
+            // find the lower-deck partner at the same (x,y)
+            bool found = false;
+            for( const vpart_reference &lo : veh->get_all_parts() ) {
+                const vehicle_part &pl = lo.part();
+                if( pl.removed || pl.is_fake || pl.mount.z() != 0 ) {
+                    continue;
+                }
+                if( pl.mount.xy() == pu.mount.xy() ) {
+                    CAPTURE( pu.mount.xy() );
+                    CHECK( pu.precalc[0].z() == pl.precalc[0].z() + 1 );
+                    found = true;
+                }
+            }
+            CAPTURE( pu.mount.xy() );
+            CHECK( found ); // every upper-deck tile has a lower-deck floor beneath it
+        }
+    };
+
+    // Guard against silent degradation: the deck-gap invariant must be exercised WHILE a ramp
+    // displacement is in flight (a part's precalc.z lifted off its mount deck), not only on flat
+    // ground where precalc.z == mount.z for every part. (The whole-vehicle sm_pos.z() only flips
+    // once the pivot crosses, which takes more travel than this short run; a lifted front part is
+    // the earlier, sufficient signal that the ramp composition is actually being tested.)
+    auto any_part_on_ramp = [&]() {
+        for( const vpart_reference &vp : veh->get_all_parts() ) {
+            const vehicle_part &p = vp.part();
+            if( !p.removed && !p.is_fake && p.precalc[0].z() != p.mount.z() ) {
+                return true;
+            }
+        }
+        return false;
+    };
+    bool saw_ramp_displacement = false;
+    for( int cycle = 0; cycle < 8; cycle++ ) {
+        CAPTURE( cycle );
+        deck_gap_holds();
+        here.vehmove();
+        saw_ramp_displacement = saw_ramp_displacement || any_part_on_ramp();
+    }
+    deck_gap_holds();
+    REQUIRE( saw_ramp_displacement );
+}
+
+// M5 §5: the mass center stays PLANAR by design — calc_mass_center accumulates
+// only x/y, so upper-deck mass folds into the same (x,y) center a one-floor
+// vehicle of equal total mass/footprint would have, with no z term feeding into
+// handling. local_center_of_mass returning a point_rel_ms (2D, not tripoint_rel_ms)
+// is itself the structural proof; this test pins the value inside the bus's
+// mount footprint so a later "add z to the mass center" change trips a red test.
+TEST_CASE( "two_floor_bus_mass_center_is_planar", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 100, 0 );
+    REQUIRE( veh != nullptr );
+
+    const point_rel_ms com = veh->local_center_of_mass( here );
+    CAPTURE( com );
+    CHECK( std::isfinite( com.x() ) );
+    CHECK( std::isfinite( com.y() ) );
+    // Footprint bounds per the test_bus_2floor prototype: x in [-1, 2], y in [0, 1].
+    CHECK( com.x() >= -1 );
+    CHECK( com.x() <= 2 );
+    CHECK( com.y() >= 0 );
+    CHECK( com.y() <= 1 );
+}

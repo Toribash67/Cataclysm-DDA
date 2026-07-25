@@ -1900,8 +1900,11 @@ class vehicle
 
         // Handle given part collision with vehicle, monster/NPC/player or terrain obstacle
         // Returns collision, which has type, impulse, part, & target.
+        // `vertical` is decided by the MOVE (vehicle::collision splits any z-diagonal move into
+        // pure-horizontal + pure-vertical passes), NOT by a part's absolute z — an upper-deck
+        // part moving horizontally is still a horizontal collision.
         veh_collision part_collision( map &here, int part, const tripoint_abs_ms &p,
-                                      bool just_detect, bool bash_floor );
+                                      bool just_detect, bool bash_floor, bool vertical );
 
         // Process the trap beneath
         void handle_trap( map *here, const tripoint_bub_ms &p, vehicle_part &vp_wheel );

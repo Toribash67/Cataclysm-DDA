@@ -1589,6 +1589,12 @@ void vehicles::finalize_prototypes()
                 vehicle_part &vp = blueprint.part( part_idx );
                 const vpart_info &vpi = vp.info();
 
+                if( vpi.has_flag( VPFLAG_WHEEL ) && pt.pos.z() != 0 ) {
+                    debugmsg( "Vehicle prototype \"%s\": WHEEL part \"%s\" is mounted at z=%d; "
+                              "wheels must be on the ground deck (z=0) — ground contact is wheelcache "
+                              "membership.", proto.id.str(), pt.part.str(), pt.pos.z() );
+                }
+
                 // try variant, if variant invalid default to first one
                 cata_assert( !vpi.variants.empty() );
                 const auto variant_it = vpi.variants.find( pt.variant );
