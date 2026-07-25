@@ -329,6 +329,93 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ---
 
+### Task 6: [A3] Workstream-A survival integration test (same-xy-different-z re-key)
+
+**Why this exists:** the M6 spec's Workstream-A acceptance test (design §Workstream A) is a *behavioral* regression: two zones/labels sharing an (x,y) on different decks must survive a re-key onto the correct decks — the exact scenario 2D keys corrupt. Tasks 1–2 used narrower container-level unit tests; this task adds the behavioral test the spec called for. It exercises `vehicle::shift_parts` (public), which re-keys every label and zone by a planar delta using the **same** 3D-key logic as the `split_vehicles` loops Task 1 changed — the reviewer named `shift_parts` z-preservation as the highest-risk Task-1 change with no direct test. `shift_parts` is chosen over engineering a fragile multi-vehicle geometric split because it covers the identical re-key invariant reliably.
+
+**Files:**
+- Test: `tests/vehicle_multifloor_test.cpp` (append). No production code changes expected.
+
+**Interfaces:**
+- Consumes: `vehicle::shift_parts( map&, const point_rel_ms& )` (public, `src/vehicle.h:2020`); 3D `loot_zones`/`label` (Tasks 1–2); `your_fac` + `#include "clzones.h"` (already in the test file from Task 1).
+
+- [ ] **Step 1: Write the test** (append)
+
+```cpp
+TEST_CASE( "multideck_zones_labels_survive_planar_rekey", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+
+    // Same (x,y), different deck: the exact collision 2D keys corrupt.
+    veh->labels.insert( label( tripoint_rel_ms( 0, 0, 0 ), "ground" ) );
+    veh->labels.insert( label( tripoint_rel_ms( 0, 0, 1 ), "upper" ) );
+    const zone_data zd( "z", zone_type_id( "LOOT_UNSORTED" ), your_fac,
+                        false, true, tripoint_abs_ms::zero, tripoint_abs_ms::zero );
+    veh->loot_zones.emplace( tripoint_rel_ms( 0, 0, 0 ), zd );
+    veh->loot_zones.emplace( tripoint_rel_ms( 0, 0, 1 ), zd );
+    REQUIRE( veh->labels.size() == 2 );
+    REQUIRE( veh->loot_zones.size() == 2 );
+
+    // shift_parts re-keys every label and zone by a planar delta. Deck (z) must be
+    // preserved and the two decks must stay distinct (2D keys would collapse them).
+    veh->shift_parts( here, point_rel_ms( 1, 0 ) );
+
+    REQUIRE( veh->labels.size() == 2 );
+    int ground_z = -99;
+    int upper_z = -99;
+    for( const label &l : veh->labels ) {
+        if( l.text == "ground" ) {
+            ground_z = l.z();
+        } else if( l.text == "upper" ) {
+            upper_z = l.z();
+        }
+    }
+    CHECK( ground_z == 0 ); // ground label stayed on the ground deck
+    CHECK( upper_z == 1 );  // upper label stayed on the upper deck
+
+    REQUIRE( veh->loot_zones.size() == 2 );
+    int zone_z_sum = 0;
+    for( const auto &z : veh->loot_zones ) {
+        zone_z_sum += z.first.z();
+    }
+    CHECK( zone_z_sum == 1 ); // exactly one zone at z=0 and one at z=1
+}
+```
+
+The assertions deliberately do not depend on the shifted xy (shift_parts subtracts the delta from keys) — only on the deck-preservation and distinctness invariant, which is what the 3D-key widening exists to guarantee.
+
+- [ ] **Step 2: Run to verify it passes on current (post-Task-2) code**
+
+Build first, then run: `.nas-build/build-retry.sh build` (foreground) → `.nas-build/cdda.sh test "multideck_zones_labels_survive_planar_rekey"`
+Expected: PASS (Tasks 1–2 already made the keys 3D — this test locks that the re-key path preserves decks; it is a regression lock, not RED→GREEN).
+
+To confirm the test is *discriminating* (not vacuously green), temporarily revert `shift_parts`'s zone/label re-key to drop z (e.g. key by `.xy()`) in a local scratch edit, rebuild, and confirm this test FAILS; then restore. Record that check in the report. (This is the RED evidence for a test added to already-correct code.)
+
+- [ ] **Step 3: Full [multifloor] + [vehicle] regression**
+
+`.nas-build/cdda.sh test "[multifloor]"` then `.nas-build/cdda.sh test "[vehicle]"` → PASS.
+
+- [ ] **Step 4: astyle + commit**
+
+```bash
+docker run --rm -v "$PWD":/src -w /src ubuntu:24.04 bash -c \
+  "apt-get update -qq && apt-get install -y -qq astyle && astyle --options=.astylerc -n tests/vehicle_multifloor_test.cpp && chown 3000:3003 tests/vehicle_multifloor_test.cpp"
+git add tests/vehicle_multifloor_test.cpp
+git commit -m "test(veh): multi-deck zones/labels survive planar re-key
+
+Locks the Workstream-A behavioral regression: same-(x,y) zones/labels on
+different decks stay distinct and deck-correct through shift_parts, the
+re-key path that shares split_vehicles' 3D-key logic.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
+```
+
+---
+
 ## Workstream B — multi-floor construction UX (`veh_interact`)
 
 ### File Structure (Workstream B)
