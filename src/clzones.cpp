@@ -1410,7 +1410,7 @@ const zone_data *zone_manager::get_bottom_zone(
 // which constructor of the key-value pair we use which depends on new_zone being an rvalue or lvalue and constness.
 // If you are passing new_zone from a non-const iterator, be prepared for a move! This
 // may break some iterators like map iterators if you are less specific!
-void zone_manager::create_vehicle_loot_zone( vehicle &vehicle, const point_rel_ms &mount_point,
+void zone_manager::create_vehicle_loot_zone( vehicle &vehicle, const tripoint_rel_ms &mount_point,
         zone_data &new_zone, map *pmap )
 {
     //create a vehicle loot zone
@@ -1442,7 +1442,8 @@ void zone_manager::add( const std::string &name, const zone_type_id &type, const
                 return;
             }
 
-            create_vehicle_loot_zone( vp->vehicle(), vp->mount_pos(), new_zone, pmap );
+            create_vehicle_loot_zone( vp->vehicle(), vp->vehicle().part( vp->part_index() ).mount,
+                                      new_zone, pmap );
             return;
         }
     }
@@ -1850,7 +1851,7 @@ void zone_manager::revert_vzones()
         const tripoint_bub_ms pos = here.get_bub( zone.get_start_point() );
         if( const std::optional<vpart_reference> vp = here.veh_at( pos ).cargo() ) {
             zone.set_is_vehicle( true );
-            vp->vehicle().loot_zones.emplace( vp->mount_pos(), zone );
+            vp->vehicle().loot_zones.emplace( vp->vehicle().part( vp->part_index() ).mount, zone );
             here.register_vehicle_zone( &vp->vehicle(), here.get_abs_sub().z() );
             cache_vzones();
         }

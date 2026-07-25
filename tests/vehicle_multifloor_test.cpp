@@ -1,5 +1,6 @@
 #include "avatar.h"
 #include "cata_catch.h"
+#include "clzones.h"
 #include "creature_tracker.h"
 #include "damage.h"
 #include "game.h"
@@ -16,6 +17,7 @@
 static const vproto_id vehicle_prototype_car( "car" );
 static const damage_type_id damage_bash( "bash" );
 static const mtype_id mon_zombie( "mon_zombie" );
+// your_fac is declared in clzones.h (included above)
 
 TEST_CASE( "vehicle_prototype_parts_default_to_z_zero", "[vehicle][multifloor]" )
 {
@@ -739,4 +741,41 @@ TEST_CASE( "removing_one_of_several_frame_bridges_does_not_split", "[vehicle][mu
     }
     // All four original upper tiles (0,0)/(0,1)/(1,0)/(1,1) remain on the one vehicle.
     CHECK( upper_tiles >= 4 );
+}
+
+// --- M6 Workstream A: 3D zone/label keys ---
+
+TEST_CASE( "labels_on_different_decks_are_distinct", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms( 60, 60, 0 ),
+                                     0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    // Same (x,y), different deck. Under 2D keys the set treats these as equal and
+    // silently keeps only one; under 3D keys both coexist.
+    veh->labels.insert( label( tripoint_rel_ms( 0, 0, 0 ), "ground" ) );
+    veh->labels.insert( label( tripoint_rel_ms( 0, 0, 1 ), "upper" ) );
+    CHECK( veh->labels.size() == 2 );
+    CHECK( veh->labels.count( label( tripoint_rel_ms( 0, 0, 0 ) ) ) == 1 );
+    CHECK( veh->labels.count( label( tripoint_rel_ms( 0, 0, 1 ) ) ) == 1 );
+}
+
+TEST_CASE( "loot_zone_erase_is_per_deck", "[vehicle][multifloor]" )
+{
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_car, tripoint_bub_ms( 60, 60, 0 ),
+                                     0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    const zone_data z_ground( "g", zone_type_id( "LOOT_UNSORTED" ), your_fac,
+                              false, true, tripoint_abs_ms::zero, tripoint_abs_ms::zero );
+    const zone_data z_upper = z_ground;
+    veh->loot_zones.emplace( tripoint_rel_ms( 0, 0, 0 ), z_ground );
+    veh->loot_zones.emplace( tripoint_rel_ms( 0, 0, 1 ), z_upper );
+    // Erasing the ground-deck key must leave the upper-deck zone intact (2D erase
+    // by (0,0) would remove both).
+    veh->loot_zones.erase( tripoint_rel_ms( 0, 0, 0 ) );
+    CHECK( veh->loot_zones.count( tripoint_rel_ms( 0, 0, 0 ) ) == 0 );
+    CHECK( veh->loot_zones.count( tripoint_rel_ms( 0, 0, 1 ) ) == 1 );
 }
