@@ -898,3 +898,10 @@ TEST_CASE( "veh_interact_install_mount_from_activity", "[vehicle][multifloor]" )
     std::vector<int> old{ 0, 0, 0, 0, 2, 3, 0 };
     CHECK( veh_interact_install_mount( old ) == tripoint_rel_ms( 2, 3, 0 ) );
 }
+
+TEST_CASE( "veh_interact_preview_decks", "[vehicle][multifloor]" )
+{
+    CHECK( veh_interact_preview_decks( 0 ) == std::pair<int, std::optional<int>> { 0, std::nullopt } );
+    CHECK( veh_interact_preview_decks( 1 ) == std::pair<int, std::optional<int>> { 1, 0 } );
+    CHECK( veh_interact_preview_decks( 2 ) == std::pair<int, std::optional<int>> { 2, 1 } );
+}

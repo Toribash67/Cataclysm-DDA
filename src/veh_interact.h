@@ -307,4 +307,6 @@ int veh_interact_clamp_deck( int desired, int min_z, int max_z );
 
 tripoint_rel_ms veh_interact_install_mount( const std::vector<int> &activity_values );
 
+std::pair<int, std::optional<int>> veh_interact_preview_decks( int sel_z );
+
 #endif // CATA_SRC_VEH_INTERACT_H

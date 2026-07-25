@@ -112,6 +112,14 @@ tripoint_rel_ms veh_interact_install_mount( const std::vector<int> &activity_val
     return tripoint_rel_ms( activity_values[4], activity_values[5], z );
 }
 
+std::pair<int, std::optional<int>> veh_interact_preview_decks( int sel_z )
+{
+    if( sel_z > 0 ) {
+        return { sel_z, sel_z - 1 };
+    }
+    return { sel_z, std::nullopt };
+}
+
 static std::string status_color( bool status )
 {
     return status ? "<color_green>" : "<color_red>";
@@ -2365,11 +2373,29 @@ void veh_interact::display_veh( map &here )
     nc_color col_at_cursor = c_black;
     int sym_at_cursor = ' ';
     //Iterate over structural parts so we only hit each square once
+    const auto [primary_z, ref_z] = veh_interact_preview_decks( sel_z );
+
+    // reference deck (deck below), dimmed, for build-support orientation
+    if( ref_z ) {
+        for( const int idx : veh->all_parts_at_location( "structure" ) ) {
+            const vehicle_part &vp = veh->part( idx );
+            if( vp.mount.z() != *ref_z ) {
+                continue;
+            }
+            const vpart_display vd = veh->get_display_of_tile( vp.mount, false, false );
+            const point_rel_ms q = ( vp.mount.xy() + dd ).rotate( 3 );
+            mvwputch( w_disp, h_size + q.raw(), c_dark_gray, vd.symbol_curses );
+        }
+    }
+
+    // primary deck (the one being edited)
     for( const int structural_part_idx : veh->all_parts_at_location( "structure" ) ) {
         const vehicle_part &vp = veh->part( structural_part_idx );
-        const vpart_display vd = veh->get_display_of_tile( vp.mount.xy(), false, false );
+        if( vp.mount.z() != primary_z ) {
+            continue;
+        }
+        const vpart_display vd = veh->get_display_of_tile( vp.mount, false, false );
         const point_rel_ms q = ( vp.mount.xy() + dd ).rotate( 3 );
-
         if( q != point_rel_ms::zero ) { // cursor is not on this part
             mvwputch( w_disp, h_size + q.raw(), vd.color, vd.symbol_curses );
             continue;
