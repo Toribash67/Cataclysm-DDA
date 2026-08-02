@@ -2433,6 +2433,13 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
                 }
             }
 
+            // Descend a deck through an internal ladder / VERTICAL_TRAVERSAL part. Standing
+            // on the connector boards the avatar, so this must run before the !in_vehicle
+            // descend logic below (which would otherwise never fire for a boarded avatar).
+            if( player_character.in_vehicle && try_vehicle_deck_move( -1 ) ) {
+                break;
+            }
+
             if( !player_character.in_vehicle ) {
                 // We're NOT standing on tiles with stairs, ropes, ladders etc
                 if( !here.has_flag( ter_furn_flag::TFLAG_GOES_DOWN, player_character.pos_bub() ) ) {
@@ -2483,6 +2490,10 @@ bool game::do_regular_action( action_id &act, avatar &player_character,
             }
             if( !player_character.in_vehicle ) {
                 vertical_move( 1, false );
+            } else if( try_vehicle_deck_move( 1 ) ) {
+                // Climbed to the deck above through an internal ladder / VERTICAL_TRAVERSAL
+                // part. Boarding on the connector tile makes in_vehicle true, so this must
+                // be handled here rather than falling through to vertical_move().
             } else if( has_vehicle_control( player_character ) ) {
                 const optional_vpart_position vp = here.veh_at( player_character.pos_bub() );
                 if( vp->vehicle().is_rotorcraft( here ) ) {
