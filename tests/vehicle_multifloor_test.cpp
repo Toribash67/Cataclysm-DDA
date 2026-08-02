@@ -377,6 +377,26 @@ TEST_CASE( "try_vehicle_deck_move_climbs_between_decks", "[vehicle][multifloor]"
     CHECK( u.in_vehicle );
 }
 
+TEST_CASE( "internal_ladder_tile_is_walkable", "[vehicle][multifloor]" )
+{
+    // Regression: you must be able to step onto the ladder tile to climb it. An OBSTACLE
+    // flag on the connector makes vpart_position::get_movecost() return 0, so the tile is
+    // impassable and the vehicle cannot be scaled at all -- try_vehicle_deck_move only
+    // fires once the avatar is standing on the connector.
+    clear_map();
+    map &here = get_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+
+    const tripoint_bub_ms connector_pos = veh->bub_part_pos( here,
+                                          veh->part( veh->part_with_feature(
+                                                  tripoint_rel_ms( 0, 0, 0 ), "VERTICAL_TRAVERSAL", false ) ) );
+    // The connector provides a vehicle floor (BOARDABLE) yet must not block walking onto it.
+    CHECK( here.has_vehicle_floor( connector_pos ) );
+    CHECK( here.passable( connector_pos ) );
+}
+
 TEST_CASE( "try_vehicle_deck_move_declines_without_connector", "[vehicle][multifloor]" )
 {
     clear_map();
