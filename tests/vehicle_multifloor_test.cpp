@@ -397,6 +397,18 @@ TEST_CASE( "internal_ladder_tile_is_walkable", "[vehicle][multifloor]" )
     CHECK( here.passable( connector_pos ) );
 }
 
+TEST_CASE( "two_floor_bus_can_steer", "[vehicle][multifloor]" )
+{
+    // Regression: the bus must have at least one STEERABLE axle or it drives but cannot
+    // turn. steering_effectiveness() returns -1 when no steering is installed at all.
+    clear_map();
+    map &here = get_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    CHECK( veh->steering_effectiveness( here ) > 0.0f );
+}
+
 TEST_CASE( "try_vehicle_deck_move_declines_without_connector", "[vehicle][multifloor]" )
 {
     clear_map();
