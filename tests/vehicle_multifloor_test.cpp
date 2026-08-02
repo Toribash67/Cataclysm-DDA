@@ -138,6 +138,32 @@ TEST_CASE( "two_floor_bus_spawns_with_parts_on_both_decks", "[vehicle][multifloo
     CHECK( !veh->parts_at_relative( tripoint_rel_ms( 0, 0, 1 ), false, false ).empty() );
 }
 
+TEST_CASE( "upper_deck_tiles_report_vehicle_floor_by_string_flag", "[vehicle][multifloor]" )
+{
+    // Regression: a string-flag part_with_feature() on an upper-deck tile must find the
+    // deck_floor there. Previously it flattened the lookup to z==0 and searched the ground
+    // deck, so a tile above a non-BOARDABLE ground part (engine/battery) falsely read as
+    // having no vehicle floor -> is_open_air stays effective -> a phantom "ledge" prompt
+    // fires when stepping onto the forward upper tiles. (The rear tiles masked the bug by
+    // sitting above a BOARDABLE ladder/seat.) This is exactly what game::move gates the
+    // ledge warning on (veh_dest = veh_at(dest).part_with_feature("BOARDABLE", true)).
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    for( const tripoint_rel_ms &m : {
+             tripoint_rel_ms( 0, 0, 1 ), tripoint_rel_ms( 0, 1, 1 ),
+             tripoint_rel_ms( 1, 0, 1 ), tripoint_rel_ms( 1, 1, 1 )
+         } ) {
+        const std::vector<int> idx = veh->parts_at_relative( m, false, false );
+        REQUIRE( !idx.empty() );
+        const tripoint_bub_ms pos = veh->bub_part_pos( here, idx[0] );
+        CAPTURE( m.x(), m.y(), pos.z() );
+        CHECK( here.veh_at( pos ).part_with_feature( "BOARDABLE", true ) );
+    }
+}
+
 // M3 §6.3 composition matrix (mount side): after precalc_mounts, every part's
 // precalc.z must equal its mount.z, across all 4 cardinal rotations and both
 // decks (with no ramp displacement, precalc_z_delta == 0). This is the NEW logic
