@@ -138,6 +138,32 @@ TEST_CASE( "two_floor_bus_spawns_with_parts_on_both_decks", "[vehicle][multifloo
     CHECK( !veh->parts_at_relative( tripoint_rel_ms( 0, 0, 1 ), false, false ).empty() );
 }
 
+TEST_CASE( "upper_deck_tiles_report_vehicle_floor_by_string_flag", "[vehicle][multifloor]" )
+{
+    // Regression: a string-flag part_with_feature() on an upper-deck tile must find the
+    // deck_floor there. Previously it flattened the lookup to z==0 and searched the ground
+    // deck, so a tile above a non-BOARDABLE ground part (engine/battery) falsely read as
+    // having no vehicle floor -> is_open_air stays effective -> a phantom "ledge" prompt
+    // fires when stepping onto the forward upper tiles. (The rear tiles masked the bug by
+    // sitting above a BOARDABLE ladder/seat.) This is exactly what game::move gates the
+    // ledge warning on (veh_dest = veh_at(dest).part_with_feature("BOARDABLE", true)).
+    map &here = get_map();
+    clear_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    for( const tripoint_rel_ms &m : {
+             tripoint_rel_ms( 0, 0, 1 ), tripoint_rel_ms( 0, 1, 1 ),
+             tripoint_rel_ms( 1, 0, 1 ), tripoint_rel_ms( 1, 1, 1 )
+         } ) {
+        const std::vector<int> idx = veh->parts_at_relative( m, false, false );
+        REQUIRE( !idx.empty() );
+        const tripoint_bub_ms pos = veh->bub_part_pos( here, idx[0] );
+        CAPTURE( m.x(), m.y(), pos.z() );
+        CHECK( here.veh_at( pos ).part_with_feature( "BOARDABLE", true ) );
+    }
+}
+
 // M3 §6.3 composition matrix (mount side): after precalc_mounts, every part's
 // precalc.z must equal its mount.z, across all 4 cardinal rotations and both
 // decks (with no ramp displacement, precalc_z_delta == 0). This is the NEW logic
@@ -375,6 +401,38 @@ TEST_CASE( "try_vehicle_deck_move_climbs_between_decks", "[vehicle][multifloor]"
     CHECK( g->try_vehicle_deck_move( -1 ) );
     CHECK( u.posz() == 0 );
     CHECK( u.in_vehicle );
+}
+
+TEST_CASE( "internal_ladder_tile_is_walkable", "[vehicle][multifloor]" )
+{
+    // Regression: you must be able to step onto the ladder tile to climb it. An OBSTACLE
+    // flag on the connector makes vpart_position::get_movecost() return 0, so the tile is
+    // impassable and the vehicle cannot be scaled at all -- try_vehicle_deck_move only
+    // fires once the avatar is standing on the connector.
+    clear_map();
+    map &here = get_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+
+    const tripoint_bub_ms connector_pos = veh->bub_part_pos( here,
+                                          veh->part( veh->part_with_feature(
+                                                  tripoint_rel_ms( 0, 0, 0 ), "VERTICAL_TRAVERSAL", false ) ) );
+    // The connector provides a vehicle floor (BOARDABLE) yet must not block walking onto it.
+    CHECK( here.has_vehicle_floor( connector_pos ) );
+    CHECK( here.passable( connector_pos ) );
+}
+
+TEST_CASE( "two_floor_bus_can_steer", "[vehicle][multifloor]" )
+{
+    // Regression: the bus must have at least one STEERABLE axle or it drives but cannot
+    // turn. steering_effectiveness() returns -1 when no steering is installed at all.
+    clear_map();
+    map &here = get_map();
+    vehicle *veh = here.add_vehicle( vehicle_prototype_test_bus_2floor,
+                                     tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( veh != nullptr );
+    CHECK( veh->steering_effectiveness( here ) > 0.0f );
 }
 
 TEST_CASE( "try_vehicle_deck_move_declines_without_connector", "[vehicle][multifloor]" )

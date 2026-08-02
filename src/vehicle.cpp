@@ -3046,7 +3046,12 @@ std::optional<vpart_reference> vpart_position::cargo() const
 std::optional<vpart_reference> vpart_position::part_with_feature( const std::string &f,
         bool unbroken, bool include_fake ) const
 {
-    const int i = vehicle().part_with_feature( mount_pos(), f, unbroken, include_fake );
+    // Search at the part's full 3D mount, not mount_pos() (2D), which the point overload
+    // would flatten to z==0 and thus look on the wrong deck of a multi-floor vehicle. This
+    // mirrors the vpart_bitflags overload below, which resolves through part_index()'s
+    // 3D mount.
+    const int i = vehicle().part_with_feature( vehicle().part( part_index() ).mount, f, unbroken,
+                  include_fake );
     if( i < 0 ) {
         return std::nullopt;
     }

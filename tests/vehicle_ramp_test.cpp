@@ -108,7 +108,7 @@ TEST_CASE( "two_floor_bus_drives_flat_keeping_deck_stack", "[vehicle][multifloor
     veh.velocity = target_velocity;
     REQUIRE( veh.safe_velocity( here ) > 0 );
 
-    const size_t parts_before = veh.part_count();
+    const int parts_before = veh.part_count();
 
     for( int cycle = 0; cycle < 8; cycle++ ) {
         CAPTURE( cycle );
@@ -164,7 +164,7 @@ static void drive_two_floor_bus_ramp( bool up )
     veh.velocity = target_velocity;
     REQUIRE( veh.safe_velocity( here ) > 0 );
 
-    const size_t parts_before = veh.part_count();
+    const int parts_before = veh.part_count();
     bool saw_base_z_change = false;
     const int base_z_start = veh.sm_pos.z();
 
