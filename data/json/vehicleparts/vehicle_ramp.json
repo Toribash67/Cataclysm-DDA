@@ -8,7 +8,7 @@
     "description": "A hinged steel ramp that folds up flush against the bed for travel and drops down to let another vehicle drive onto the deck above.  Open it to deploy the ramp.",
     "item": "sheet_metal",
     "location": "structure",
-    "flags": [ "VEH_RAMP_UP", "VEH_RAMP_DOWN", "BOARDABLE", "OPENABLE" ],
+    "flags": [ "VEH_RAMP_UP", "VEH_RAMP_DOWN", "BOARDABLE", "OPENABLE", "DOOR" ],
     "requirements": {
       "install": {
         "skills": [ [ "mechanics", 3 ] ],
