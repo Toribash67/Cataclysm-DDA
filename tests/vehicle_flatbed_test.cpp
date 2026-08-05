@@ -50,6 +50,7 @@ TEST_CASE( "vehicle_rests_on_vehicle_below_is_supported", "[vehicle][flatbed][mu
 }
 
 static const vproto_id vehicle_prototype_test_flatbed_truck( "test_flatbed_truck" );
+static const vproto_id vehicle_prototype_test_flatbed_truck_deploy( "test_flatbed_truck_deploy" );
 static const vproto_id vehicle_prototype_test_car( "test_car" );
 
 TEST_CASE( "test_flatbed_truck_has_a_ramp_part", "[vehicle][flatbed]" )
@@ -128,4 +129,73 @@ TEST_CASE( "test_car_drives_up_ramp_onto_parked_truck_bed", "[vehicle][flatbed]"
         }
     }
     CHECK_FALSE( car_has_carried );
+}
+
+// Helper: spawn a car behind the deploy-ramp truck, run it forward, and return true if any
+// part of the car reaches z+1.  open_ramp controls whether the OPENABLE ramp parts are open.
+static bool drive_car_climbs_deploy( vehicle *truck, bool open_ramp )
+{
+    map &here = get_map();
+    // Set open state directly on every OPENABLE ramp part, then rebuild caches.
+    for( const vpart_reference &vpr : truck->get_all_parts() ) {
+        if( vpr.info().has_flag( VPFLAG_VEH_RAMP_UP ) &&
+            vpr.info().has_flag( VPFLAG_OPENABLE ) ) {
+            truck->part( static_cast<int>( vpr.part_index() ) ).open = open_ramp;
+        }
+    }
+    here.invalidate_map_cache( 0 );
+    here.invalidate_map_cache( 1 );
+    here.build_map_cache( 0, true );
+    here.build_map_cache( 1, true );
+
+    vehicle *car = here.add_vehicle( vehicle_prototype_test_car,
+                                     tripoint_bub_ms( 56, 60, 0 ), 0_degrees, 100, 0 );
+    REQUIRE( car != nullptr );
+    car->tags.insert( "IN_CONTROL_OVERRIDE" );
+    car->engine_on = true;
+    car->cruise_velocity = 200;
+    car->velocity = 200;
+
+    for( int cycle = 0; cycle < 12; cycle++ ) {
+        here.vehmove();
+    }
+
+    for( const vpart_reference &vpr : car->get_all_parts() ) {
+        if( !vpr.part().removed && !vpr.part().is_fake && vpr.part().precalc[0].z() == 1 ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+TEST_CASE( "closed_deployable_ramp_blocks_climb", "[vehicle][flatbed]" )
+{
+    clear_map();
+    clear_vehicles();
+    map &here = get_map();
+    build_open_air_upper( here );
+
+    vehicle *truck = here.add_vehicle( vehicle_prototype_test_flatbed_truck_deploy,
+                                       tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( truck != nullptr );
+    truck->velocity = 0;
+    truck->engine_on = false;
+
+    CHECK_FALSE( drive_car_climbs_deploy( truck, /*open_ramp=*/false ) );
+}
+
+TEST_CASE( "open_deployable_ramp_allows_climb", "[vehicle][flatbed]" )
+{
+    clear_map();
+    clear_vehicles();
+    map &here = get_map();
+    build_open_air_upper( here );
+
+    vehicle *truck = here.add_vehicle( vehicle_prototype_test_flatbed_truck_deploy,
+                                       tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( truck != nullptr );
+    truck->velocity = 0;
+    truck->engine_on = false;
+
+    CHECK( drive_car_climbs_deploy( truck, /*open_ramp=*/true ) );
 }

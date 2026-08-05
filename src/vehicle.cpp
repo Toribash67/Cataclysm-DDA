@@ -8901,14 +8901,9 @@ std::set<int> vehicle::advance_precalc_mounts( const point_sm_ms &new_pos,
             // A ramp *part* on a different, stationary vehicle acts like a terrain ramp
             // for a vehicle driving onto it: it is the flatbed-loading path. The carrier
             // must be stopped (M1 loads onto parked vehicles only).
-            vehicle &other = ovp->vehicle();
-            if( &other != this && other.velocity == 0 ) {
-                if( ovp->part_with_feature( VPFLAG_VEH_RAMP_UP, true ) ) {
-                    prt.precalc[0].z() += 1;
-                } else if( ovp->part_with_feature( VPFLAG_VEH_RAMP_DOWN, true ) ) {
-                    prt.precalc[0].z() -= 1;
-                }
-            }
+            // veh_ramp_dir() also gates OPENABLE ramps on their open state, matching
+            // the collision-skip gate in part_collision().
+            prt.precalc[0].z() += veh_ramp_dir( ovp, this );
         }
         prt.precalc[0].z() -= ramp_offset;
         prt.precalc[1].z() = prt.precalc[0].z();

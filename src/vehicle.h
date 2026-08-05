@@ -229,6 +229,10 @@ int mps_to_vmiph( double mps );
 double vmiph_to_mps( int vmiph );
 int cmps_to_vmiph( int cmps );
 int vmiph_to_cmps( int vmiph );
+
+// Returns +1 if `ovp` is an active VEH_RAMP_UP part on a different, stationary vehicle,
+// -1 for VEH_RAMP_DOWN, 0 otherwise.  A part with OPENABLE only counts when its open==true.
+int veh_ramp_dir( const optional_vpart_position &ovp, const vehicle *mover );
 constexpr float accel_g = 9.81f;
 
 enum class vp_flag : uint32_t {
