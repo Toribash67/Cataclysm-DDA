@@ -122,6 +122,8 @@ enum vpart_bitflags : int {
     // connectivity between decks is carried by frames. See docs
     // 2026-07-25-vehicle-vertical-frame-connectivity-design.
     VPFLAG_VERTICAL_TRAVERSAL,
+    VPFLAG_VEH_RAMP_UP,
+    VPFLAG_VEH_RAMP_DOWN,
 
     NUM_VPFLAGS
 };
