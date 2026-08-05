@@ -8892,10 +8892,23 @@ std::set<int> vehicle::advance_precalc_mounts( const point_sm_ms &new_pos,
         // single-floor vehicles (byte-identical to the previous probe).
         tripoint_rel_ms ground_probe = prt.precalc[0];
         ground_probe.z() -= prt.mount.z();
-        if( here->has_flag( ter_furn_flag::TFLAG_RAMP_UP, src + dp + ground_probe ) ) {
+        const tripoint_bub_ms ramp_probe = src + dp + ground_probe;
+        if( here->has_flag( ter_furn_flag::TFLAG_RAMP_UP, ramp_probe ) ) {
             prt.precalc[0].z() += 1;
-        } else if( here->has_flag( ter_furn_flag::TFLAG_RAMP_DOWN, src + dp + ground_probe ) ) {
+        } else if( here->has_flag( ter_furn_flag::TFLAG_RAMP_DOWN, ramp_probe ) ) {
             prt.precalc[0].z() -= 1;
+        } else if( const optional_vpart_position ovp = here->veh_at( ramp_probe ) ) {
+            // A ramp *part* on a different, stationary vehicle acts like a terrain ramp
+            // for a vehicle driving onto it: it is the flatbed-loading path. The carrier
+            // must be stopped (M1 loads onto parked vehicles only).
+            vehicle &other = ovp->vehicle();
+            if( &other != this && other.velocity == 0 ) {
+                if( ovp->part_with_feature( VPFLAG_VEH_RAMP_UP, true ) ) {
+                    prt.precalc[0].z() += 1;
+                } else if( ovp->part_with_feature( VPFLAG_VEH_RAMP_DOWN, true ) ) {
+                    prt.precalc[0].z() -= 1;
+                }
+            }
         }
         prt.precalc[0].z() -= ramp_offset;
         prt.precalc[1].z() = prt.precalc[0].z();

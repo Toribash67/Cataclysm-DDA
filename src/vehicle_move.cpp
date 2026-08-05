@@ -855,9 +855,19 @@ veh_collision vehicle::part_collision( map &here, int part, const tripoint_abs_m
     }
 
     const optional_vpart_position ovp = here.veh_at( p );
+    // A ramp *part* on a different, stationary vehicle is a climb surface, not an obstacle:
+    // a vehicle driving onto it is lifted to a different z by advance_precalc_mounts (the
+    // flatbed-loading path), exactly as a terrain ramp lifts it without colliding. The
+    // horizontal collision pass runs before that z-lift is applied to precalc, so without
+    // this skip the ramp part would be seen as a solid vehicle at the same z and bounce the
+    // mover back. Terrain ramps avoid this simply by having no obstacle at the tile.
+    const bool onto_veh_ramp = !bash_floor && ovp && &ovp->vehicle() != this &&
+                               ovp->vehicle().velocity == 0 &&
+                               ( ovp->part_with_feature( VPFLAG_VEH_RAMP_UP, true ) ||
+                                 ovp->part_with_feature( VPFLAG_VEH_RAMP_DOWN, true ) );
     // Disable vehicle/critter collisions when bashing floor
     // TODO: More elegant code
-    const bool is_veh_collision = !bash_floor && ovp && &ovp->vehicle() != this;
+    const bool is_veh_collision = !bash_floor && !onto_veh_ramp && ovp && &ovp->vehicle() != this;
     const bool is_body_collision = !bash_floor && critter != nullptr;
 
     veh_collision ret;

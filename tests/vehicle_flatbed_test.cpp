@@ -69,3 +69,63 @@ TEST_CASE( "test_flatbed_truck_has_a_ramp_part", "[vehicle][flatbed]" )
     }
     CHECK( found_ramp );
 }
+
+TEST_CASE( "test_car_drives_up_ramp_onto_parked_truck_bed", "[vehicle][flatbed]" )
+{
+    clear_map();
+    clear_vehicles();
+    map &here = get_map();
+    build_test_map( ter_id( "t_pavement" ) );
+    // open air above z0 so the bed's support must come from the truck
+    for( int x = 0; x < SEEX * MAPSIZE; x++ ) {
+        for( int y = 0; y < SEEY * MAPSIZE; y++ ) {
+            here.ter_set( tripoint_bub_ms( x, y, 1 ), ter_id( "t_open_air" ) );
+        }
+    }
+    here.invalidate_map_cache( 0 );
+    here.invalidate_map_cache( 1 );
+    here.build_map_cache( 0, true );
+    here.build_map_cache( 1, true );
+
+    // Parked truck facing +x; its ramp tail is at the truck's -x end.
+    vehicle *truck = here.add_vehicle( vehicle_prototype_test_flatbed_truck,
+                                       tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( truck != nullptr );
+    truck->velocity = 0;
+    truck->engine_on = false;
+
+    // Car placed just behind the ramp tail, facing +x (toward the truck).
+    vehicle *car = here.add_vehicle( vehicle_prototype_test_car,
+                                     tripoint_bub_ms( 56, 60, 0 ), 0_degrees, 100, 0 );
+    REQUIRE( car != nullptr );
+    car->tags.insert( "IN_CONTROL_OVERRIDE" );
+    car->engine_on = true;
+    car->cruise_velocity = 200;
+    car->velocity = 200;
+
+    // Drive forward until the car has climbed; a handful of ticks suffices.
+    for( int cycle = 0; cycle < 12; cycle++ ) {
+        here.vehmove();
+    }
+
+    // The car climbed to z+1...
+    bool any_z1 = false;
+    for( const vpart_reference &vpr : car->get_all_parts() ) {
+        if( !vpr.part().removed && !vpr.part().is_fake && vpr.part().precalc[0].z() == 1 ) {
+            any_z1 = true;
+        }
+    }
+    CHECK( any_z1 );
+    // ...it did not fall...
+    car->check_falling_or_floating();
+    CHECK_FALSE( car->is_falling );
+    // ...and it is still a SEPARATE vehicle (M1 boundary: no merge).
+    CHECK( car != truck );
+    bool car_has_carried = false;
+    for( const vpart_reference &vpr : car->get_all_parts() ) {
+        if( vpr.part().has_flag( vp_flag::carried_flag ) ) {
+            car_has_carried = true;
+        }
+    }
+    CHECK_FALSE( car_has_carried );
+}
