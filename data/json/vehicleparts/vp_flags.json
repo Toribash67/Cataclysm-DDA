@@ -706,6 +706,16 @@
     "info": "A climbable opening (ladder/hatch/stairwell) letting a creature move between this deck and the one directly above or below it."
   },
   {
+    "id": "VEH_RAMP_DOWN",
+    "type": "json_flag",
+    "info": "This part is a ramp that slopes down off the vehicle, allowing another vehicle to drive up onto the deck above."
+  },
+  {
+    "id": "VEH_RAMP_UP",
+    "type": "json_flag",
+    "info": "This part is a ramp that slopes up onto the vehicle, allowing another vehicle to drive up from below onto the deck."
+  },
+  {
     "id": "WHEEL_MOUNT_CONCRETE_MIX",
     "type": "json_flag"
   },

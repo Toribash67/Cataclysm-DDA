@@ -5,7 +5,9 @@
 #include "map_scale_constants.h"
 #include "point.h"
 #include "type_id.h"
+#include "veh_type.h"
 #include "vehicle.h"
+#include "vpart_position.h"
 
 static const vproto_id vehicle_prototype_car( "car" );
 
@@ -45,4 +47,25 @@ TEST_CASE( "vehicle_rests_on_vehicle_below_is_supported", "[vehicle][flatbed][mu
 
     upper->check_falling_or_floating();
     CHECK_FALSE( upper->is_falling );
+}
+
+static const vproto_id vehicle_prototype_test_flatbed_truck( "test_flatbed_truck" );
+static const vproto_id vehicle_prototype_test_car( "test_car" );
+
+TEST_CASE( "test_flatbed_truck_has_a_ramp_part", "[vehicle][flatbed]" )
+{
+    clear_map();
+    clear_vehicles();
+    map &here = get_map();
+    build_test_map( ter_id( "t_pavement" ) );
+    vehicle *truck = here.add_vehicle( vehicle_prototype_test_flatbed_truck,
+                                       tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( truck != nullptr );
+    bool found_ramp = false;
+    for( const vpart_reference &vpr : truck->get_all_parts() ) {
+        if( vpr.info().has_flag( VPFLAG_VEH_RAMP_UP ) ) {
+            found_ramp = true;
+        }
+    }
+    CHECK( found_ramp );
 }

@@ -1,0 +1,25 @@
+[
+  {
+    "id": "veh_ramp_fixed",
+    "type": "vehicle_part",
+    "name": { "str": "fixed loading ramp" },
+    "categories": [ "hull" ],
+    "durability": 300,
+    "description": "A fixed steel ramp sloping down off the back of the bed, letting another vehicle drive up onto the deck above.",
+    "item": "sheet_metal",
+    "location": "structure",
+    "flags": [ "VEH_RAMP_UP", "VEH_RAMP_DOWN", "BOARDABLE" ],
+    "requirements": {
+      "install": {
+        "skills": [ [ "mechanics", 3 ] ],
+        "time": "60 m",
+        "using": [ [ "welding_standard", 200 ], [ "vehicle_bolt_install", 2 ] ]
+      },
+      "removal": { "skills": [ [ "mechanics", 2 ] ], "time": "30 m", "using": [ [ "vehicle_wrench_2", 1 ] ] },
+      "repair": { "skills": [ [ "mechanics", 3 ] ], "time": "8 m", "using": [ [ "repair_welding_lc_steel", 4 ] ] }
+    },
+    "breaks_into": "ig_vp_sheet_metal",
+    "damage_reduction": { "all": 20 },
+    "variants": [ { "symbols": "/", "symbols_broken": "#" } ]
+  }
+]
