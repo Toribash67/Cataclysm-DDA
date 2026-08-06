@@ -506,6 +506,36 @@ TEST_CASE( "deck_floor_below_true_only_over_walkable_roof", "[vehicle][flatbed]"
     CHECK_FALSE( here.deck_floor_below( *deck_tile + tripoint_rel_ms( 0, 0, -1 ) ) );
 }
 
+TEST_CASE( "generic_roof_is_not_a_walkable_deck", "[vehicle][flatbed]" )
+{
+    clear_map();
+    clear_vehicles();
+    map &here = get_map();
+    build_test_map( ter_id( "t_pavement" ) );
+    for( int x = 0; x < SEEX * MAPSIZE; x++ ) {
+        for( int y = 0; y < SEEY * MAPSIZE; y++ ) {
+            here.ter_set( tripoint_bub_ms( x, y, 1 ), ter_id( "t_open_air" ) );
+        }
+    }
+    here.invalidate_map_cache( 0 );
+    here.invalidate_map_cache( 1 );
+    here.build_map_cache( 0, true );
+    here.build_map_cache( 1, true );
+    // "car" has an ordinary roof (no WALKABLE_ROOF).
+    vehicle *plain = here.add_vehicle( vproto_id( "car" ), tripoint_bub_ms( 60, 60, 0 ),
+                                       0_degrees, 0, 0 );
+    REQUIRE( plain != nullptr );
+    bool any_roof = false;
+    for( const vpart_reference &vpr : plain->get_all_parts() ) {
+        if( plain->roof_at_part( vpr.part_index() ) >= 0 ) {
+            any_roof = true;
+            const tripoint_bub_ms above = vpr.pos_bub( here ) + tripoint_rel_ms( 0, 0, 1 );
+            CHECK_FALSE( here.deck_floor_below( above ) );  // roof, but not a walkable deck
+        }
+    }
+    REQUIRE( any_roof );
+}
+
 TEST_CASE( "pathfinding_routes_up_vehicle_ramp_onto_deck", "[vehicle][flatbed]" )
 {
     clear_map();
