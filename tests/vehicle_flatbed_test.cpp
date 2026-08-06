@@ -119,6 +119,7 @@ TEST_CASE( "character_walks_onto_parked_flatbed_no_board_errors", "[vehicle][fla
     CAPTURE( dmsg );
     CAPTURE( u.pos_bub( here ).to_string() );
     CHECK( dmsg.empty() );
+    CHECK( u.pos_bub( here ).z() == 1 );  // climbed onto the deck via ramp
 }
 
 TEST_CASE( "avatar_drives_car_up_ramp_then_walks_deck_no_board_errors", "[vehicle][flatbed]" )

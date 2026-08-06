@@ -10727,13 +10727,6 @@ bool game::walk_move( const tripoint_bub_ms &dest_loc, const bool via_ramp,
     u.set_underwater( false );
 
     std::vector<std::string> harmful_stuff = get_dangerous_tile( dest_loc );
-    if( via_ramp ) {
-        // Stepping up/down a ramp is not walking off a ledge: suppress the ledge warning so
-        // the avatar can walk onto the deck above a parked vehicle's loading ramp without
-        // triggering the fall/climb prompt.
-        harmful_stuff.erase( std::remove( harmful_stuff.begin(), harmful_stuff.end(),
-                                          std::string( "ledge" ) ), harmful_stuff.end() );
-    }
     if( !shifting_furniture && !pushing && !harmful_stuff.empty() ) {
         if( harmful_stuff.size() == 1 && harmful_stuff[0] == "ledge" ) {
             iexamine::ledge( u, tripoint_bub_ms( dest_loc ) );
