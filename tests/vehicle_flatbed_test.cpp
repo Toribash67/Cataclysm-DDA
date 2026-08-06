@@ -321,6 +321,92 @@ TEST_CASE( "test_flatbed_bed_has_walkable_roof_deck", "[vehicle][flatbed]" )
     CHECK( found_walkable_deck );
 }
 
+TEST_CASE( "avatar_walks_across_flatbed_deck_no_ledge_menu", "[vehicle][flatbed]" )
+{
+    clear_map();
+    clear_vehicles();
+    clear_avatar();
+    map &here = get_map();
+    build_test_map( ter_id( "t_pavement" ) );
+    for( int x = 0; x < SEEX * MAPSIZE; x++ ) {
+        for( int y = 0; y < SEEY * MAPSIZE; y++ ) {
+            here.ter_set( tripoint_bub_ms( x, y, 1 ), ter_id( "t_open_air" ) );
+        }
+    }
+    here.invalidate_map_cache( 0 );
+    here.invalidate_map_cache( 1 );
+    here.build_map_cache( 0, true );
+    here.build_map_cache( 1, true );
+
+    vehicle *truck = here.add_vehicle( vehicle_prototype_test_flatbed_truck,
+                                       tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( truck != nullptr );
+    truck->velocity = 0;
+    truck->engine_on = false;
+    vehicle *car = here.add_vehicle( vehicle_prototype_test_car,
+                                     tripoint_bub_ms( 56, 60, 0 ), 0_degrees, 100, 0 );
+    REQUIRE( car != nullptr );
+
+    avatar &u = get_avatar();
+    u.setpos( here, tripoint_bub_ms( 56, 60, 0 ) );
+    here.board_vehicle( u.pos_bub( here ), &u );
+    REQUIRE( u.in_vehicle );
+    car->tags.insert( "IN_CONTROL_OVERRIDE" );
+    car->engine_on = true;
+    car->cruise_velocity = 200;
+    car->velocity = 200;
+    for( int cycle = 0; cycle < 20; cycle++ ) {
+        here.vehmove();
+        if( car->pos_bub( here ).z() == 1 ) {
+            car->cruise_velocity = 0;
+            car->velocity = 0;
+            break;
+        }
+    }
+    for( int i = 0; i < 3; i++ ) {
+        here.vehmove();
+    }
+    REQUIRE( u.pos_bub( here ).z() == 1 );
+
+    // Step off the car onto the truck's own deck, then across it.
+    creature_tracker &cr = get_creature_tracker();
+    here.unboard_vehicle( u.pos_bub( here ) );
+    std::optional<tripoint_bub_ms> roof_deck;
+    for( const vpart_reference &vpr : truck->get_all_parts() ) {
+        if( truck->roof_at_part( vpr.part_index() ) < 0 ) {
+            continue;
+        }
+        const tripoint_bub_ms above = vpr.pos_bub( here ) + tripoint_rel_ms( 0, 0, 1 );
+        if( cr.creature_at( above ) == nullptr && !here.veh_at( above ) ) {
+            roof_deck = above;
+            break;
+        }
+    }
+    REQUIRE( roof_deck.has_value() );
+    u.setpos( here, *roof_deck );
+    REQUIRE( u.pos_bub( here ) == *roof_deck );
+
+    // Find an adjacent roof-supported deck tile and walk to it.
+    std::optional<tripoint_rel_ms> across_dir;
+    for( const tripoint_rel_ms &d : { tripoint_rel_ms( 1, 0, 0 ), tripoint_rel_ms( -1, 0, 0 ),
+                                      tripoint_rel_ms( 0, 1, 0 ), tripoint_rel_ms( 0, -1, 0 ) } ) {
+        const tripoint_bub_ms nb = *roof_deck + d;
+        if( here.deck_floor_below( nb ) && !here.veh_at( nb ) && cr.creature_at( nb ) == nullptr ) {
+            across_dir = d;
+            break;
+        }
+    }
+    REQUIRE( across_dir.has_value() );
+    const tripoint_abs_ms across_target_abs = here.get_abs( *roof_deck + *across_dir );
+    u.set_moves( 1000 );
+    std::string dmsg = capture_debugmsg_during( [&]() {
+        avatar_action::move( u, here, *across_dir );
+    } );
+    CAPTURE( dmsg );
+    CHECK( dmsg.empty() );
+    CHECK( u.pos_abs() == across_target_abs );  // actually walked across, no menu/fall
+}
+
 TEST_CASE( "deck_floor_below_true_only_over_walkable_roof", "[vehicle][flatbed]" )
 {
     clear_map();
