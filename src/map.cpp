@@ -2737,6 +2737,15 @@ bool map::has_vehicle_floor( const tripoint_bub_ms &p ) const
            veh_at( p ).part_with_feature( "OBSTACLE", false );
 }
 
+bool map::deck_floor_below( const tripoint_bub_ms &p ) const
+{
+    if( !is_open_air( p ) ) {
+        return false;
+    }
+    const tripoint_bub_ms below( p.xy(), p.z() - 1 );
+    return veh_at( below ).part_with_feature( VPFLAG_WALKABLE_ROOF, false ).has_value();
+}
+
 void map::drop_everything( const tripoint_bub_ms &p )
 {
     // Creature has their own gravity check

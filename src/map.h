@@ -1647,6 +1647,9 @@ class map
         bool supports_above( const tripoint_bub_ms &p ) const;
         bool has_floor_or_support( const tripoint_bub_ms &p ) const;
         bool has_vehicle_floor( const tripoint_bub_ms &p ) const;
+        // True when p is open air but the vehicle part directly below carries
+        // WALKABLE_ROOF, i.e. p is a walkable vehicle deck floor.
+        bool deck_floor_below( const tripoint_bub_ms &p ) const;
     private:
         /**
          * Handles map objects of given type falling down.

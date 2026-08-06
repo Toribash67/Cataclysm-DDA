@@ -320,3 +320,40 @@ TEST_CASE( "test_flatbed_bed_has_walkable_roof_deck", "[vehicle][flatbed]" )
     }
     CHECK( found_walkable_deck );
 }
+
+TEST_CASE( "deck_floor_below_true_only_over_walkable_roof", "[vehicle][flatbed]" )
+{
+    clear_map();
+    clear_vehicles();
+    map &here = get_map();
+    build_test_map( ter_id( "t_pavement" ) );
+    // open air above z0 so deck tiles are is_open_air
+    for( int x = 0; x < SEEX * MAPSIZE; x++ ) {
+        for( int y = 0; y < SEEY * MAPSIZE; y++ ) {
+            here.ter_set( tripoint_bub_ms( x, y, 1 ), ter_id( "t_open_air" ) );
+        }
+    }
+    here.invalidate_map_cache( 0 );
+    here.invalidate_map_cache( 1 );
+    here.build_map_cache( 0, true );
+    here.build_map_cache( 1, true );
+    vehicle *truck = here.add_vehicle( vehicle_prototype_test_flatbed_truck,
+                                       tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( truck != nullptr );
+
+    // A tile above a WALKABLE_ROOF bed part -> true.
+    std::optional<tripoint_bub_ms> deck_tile;
+    for( const vpart_reference &vpr : truck->get_all_parts() ) {
+        if( vpr.info().has_flag( VPFLAG_WALKABLE_ROOF ) ) {
+            deck_tile = vpr.pos_bub( here ) + tripoint_rel_ms( 0, 0, 1 );
+            break;
+        }
+    }
+    REQUIRE( deck_tile.has_value() );
+    CHECK( here.deck_floor_below( *deck_tile ) );
+
+    // A z+1 tile far from the truck (open air over bare pavement) -> false.
+    CHECK_FALSE( here.deck_floor_below( tripoint_bub_ms( 40, 40, 1 ) ) );
+    // The deck part's own z0 tile is not open air-above-a-deck -> false.
+    CHECK_FALSE( here.deck_floor_below( *deck_tile + tripoint_rel_ms( 0, 0, -1 ) ) );
+}
