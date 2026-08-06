@@ -238,6 +238,11 @@ bool avatar_action::move( avatar &you, map &m, const tripoint_rel_ms &d )
     } else if( m.has_flag( ter_furn_flag::TFLAG_RAMP_DOWN, dest_loc ) ) {
         dest_loc.z() -= 1;
         via_ramp = true;
+    } else if( const int vramp = veh_ramp_dir( m.veh_at( dest_loc ), nullptr ) ) {
+        // Walk up/down a parked vehicle's loading ramp onto/off its deck, mirroring
+        // terrain ramps and the drive-up path (both key off veh_ramp_dir).
+        dest_loc.z() += vramp;
+        via_ramp = true;
     }
 
     item_location weapon = you.get_wielded_item();

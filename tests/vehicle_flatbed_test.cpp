@@ -83,6 +83,16 @@ TEST_CASE( "character_walks_onto_parked_flatbed_no_board_errors", "[vehicle][fla
     clear_avatar();
     map &here = get_map();
     build_test_map( ter_id( "t_pavement" ) );
+    // open air above z0 so the ramp lift lands on a walkable deck tile, not a solid wall
+    for( int x = 0; x < SEEX * MAPSIZE; x++ ) {
+        for( int y = 0; y < SEEY * MAPSIZE; y++ ) {
+            here.ter_set( tripoint_bub_ms( x, y, 1 ), ter_id( "t_open_air" ) );
+        }
+    }
+    here.invalidate_map_cache( 0 );
+    here.invalidate_map_cache( 1 );
+    here.build_map_cache( 0, true );
+    here.build_map_cache( 1, true );
 
     // Parked truck facing +x; ramp tail at the truck's -x end (world x = 60-2 = 58).
     vehicle *truck = here.add_vehicle( vehicle_prototype_test_flatbed_truck,
@@ -95,15 +105,19 @@ TEST_CASE( "character_walks_onto_parked_flatbed_no_board_errors", "[vehicle][fla
     // Start on the ground just behind the ramp tail, facing the truck.
     u.setpos( here, tripoint_bub_ms( 57, 60, 0 ) );
     here.build_map_cache( 0, true );
+    here.build_map_cache( 1, true );
 
-    // Walk east across the whole truck: ground -> ramp -> bed frames -> seats -> off.
+    // Walk east: ground -> ramp (lift to z+1) -> 2 deck tiles. Stop before the cab at
+    // x=61 which has no deck support (to avoid triggering the ledge menu and is not the
+    // point of this test — ledge edge-walking is covered by the _walks_across_ test).
     std::string dmsg = capture_debugmsg_during( [&]() {
-        for( int step = 0; step < 7; step++ ) {
+        for( int step = 0; step < 3; step++ ) {
             u.set_moves( 1000 );
             avatar_action::move( u, here, tripoint_rel_ms::east );
         }
     } );
     CAPTURE( dmsg );
+    CAPTURE( u.pos_bub( here ).to_string() );
     CHECK( dmsg.empty() );
 }
 
@@ -405,6 +419,50 @@ TEST_CASE( "avatar_walks_across_flatbed_deck_no_ledge_menu", "[vehicle][flatbed]
     CAPTURE( dmsg );
     CHECK( dmsg.empty() );
     CHECK( u.pos_abs() == across_target_abs );  // actually walked across, no menu/fall
+}
+
+TEST_CASE( "avatar_walks_up_ramp_onto_flatbed_deck", "[vehicle][flatbed]" )
+{
+    clear_map();
+    clear_vehicles();
+    clear_avatar();
+    map &here = get_map();
+    build_test_map( ter_id( "t_pavement" ) );
+    for( int x = 0; x < SEEX * MAPSIZE; x++ ) {
+        for( int y = 0; y < SEEY * MAPSIZE; y++ ) {
+            here.ter_set( tripoint_bub_ms( x, y, 1 ), ter_id( "t_open_air" ) );
+        }
+    }
+    here.invalidate_map_cache( 0 );
+    here.invalidate_map_cache( 1 );
+    here.build_map_cache( 0, true );
+    here.build_map_cache( 1, true );
+
+    vehicle *truck = here.add_vehicle( vehicle_prototype_test_flatbed_truck,
+                                       tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( truck != nullptr );
+    truck->velocity = 0;
+    truck->engine_on = false;
+
+    // Ramp tail is at world x=58 (mount -2). Start two tiles behind it on the ground.
+    avatar &u = get_avatar();
+    u.setpos( here, tripoint_bub_ms( 56, 60, 0 ) );
+    here.build_map_cache( 0, true );
+
+    // Walk east up the ramp onto the bed. A few steps; stop once on the deck at z+1.
+    std::string dmsg = capture_debugmsg_during( [&]() {
+        for( int step = 0; step < 6 && u.pos_bub( here ).z() == 0; step++ ) {
+            u.set_moves( 1000 );
+            avatar_action::move( u, here, tripoint_rel_ms::east );
+        }
+    } );
+    CAPTURE( dmsg );
+    CAPTURE( u.pos_bub( here ).to_string() );
+    CHECK( dmsg.empty() );
+    CHECK( u.pos_bub( here ).z() == 1 );                 // climbed to the deck
+    CHECK( here.deck_floor_below( u.pos_bub( here ) ) );  // standing on a walkable deck tile
+    u.gravity_check( &here );
+    CHECK( u.pos_bub( here ).z() == 1 );                 // and does not fall
 }
 
 TEST_CASE( "deck_floor_below_true_only_over_walkable_roof", "[vehicle][flatbed]" )
