@@ -833,30 +833,20 @@ static void terrain_collision_data( map &here, const tripoint_bub_ms &p, bool ba
     density = bash_min;
 }
 
-// Returns +1 if `ovp` holds an active VEH_RAMP_UP part on a different, stationary vehicle,
+// Returns +1 if `ovp` holds a VEH_RAMP_UP part on a different, stationary vehicle,
 // -1 for VEH_RAMP_DOWN, 0 otherwise.
-// "Active" means: the part has the ramp flag AND (it is not OPENABLE, OR it is open).
-// Called from both advance_precalc_mounts (z-lift) and part_collision (collision skip)
-// to keep the two sites in lockstep.
+// Called from displace_vehicle (the actual z-transition), advance_precalc_mounts (per-part
+// z-lift), and part_collision (collision skip) so all sites key off one predicate and cannot
+// diverge.
 int veh_ramp_dir( const optional_vpart_position &ovp, const vehicle *mover )
 {
     if( !ovp || &ovp->vehicle() == mover || ovp->vehicle().velocity != 0 ) {
         return 0;
     }
-    const auto ramp_active = [&]( vpart_bitflags flag ) -> bool {
-        const std::optional<vpart_reference> rp = ovp->part_with_feature( flag, true );
-        if( !rp ) {
-            return false;
-        }
-        if( rp->info().has_flag( VPFLAG_OPENABLE ) && !rp->part().open ) {
-            return false;
-        }
-        return true;
-    };
-    if( ramp_active( VPFLAG_VEH_RAMP_UP ) ) {
+    if( ovp->part_with_feature( VPFLAG_VEH_RAMP_UP, true ) ) {
         return +1;
     }
-    if( ramp_active( VPFLAG_VEH_RAMP_DOWN ) ) {
+    if( ovp->part_with_feature( VPFLAG_VEH_RAMP_DOWN, true ) ) {
         return -1;
     }
     return 0;

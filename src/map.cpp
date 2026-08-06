@@ -1501,6 +1501,13 @@ bool map::displace_vehicle( vehicle &veh, const tripoint_rel_ms &dp, const bool 
         } else if( has_flag( ter_furn_flag::TFLAG_RAMP_DOWN, src + dp ) ) {
             ramp_offset -= 1;
             veh.is_on_ramp = true;
+        } else if( const int vehicle_ramp = veh_ramp_dir( veh_at( src + dp ), &veh ) ) {
+            // A ramp *part* on a different, stationary vehicle lifts/drops this vehicle a
+            // z-level exactly like terrain ramps -- this is the flatbed drive-on path.
+            // Mirrors the per-part probe in advance_precalc_mounts and the collision skip
+            // in part_collision (all three key off veh_ramp_dir so they cannot diverge).
+            ramp_offset += vehicle_ramp;
+            veh.is_on_ramp = true;
         }
     }
 
@@ -1617,6 +1624,9 @@ bool map::displace_vehicle( vehicle &veh, const tripoint_rel_ms &dp, const bool 
                 psg_offset_z += 1;
             } else if( has_flag( ter_furn_flag::TFLAG_RAMP_DOWN, src + dp + ground_probe ) ) {
                 psg_offset_z -= 1;
+            } else {
+                // keep a rider aligned with the vehicle when it climbs a vehicle ramp part
+                psg_offset_z += veh_ramp_dir( veh_at( src + dp + ground_probe ), &veh );
             }
 
             // Place passenger on the new part location

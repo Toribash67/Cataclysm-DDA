@@ -1,28 +1,5 @@
 [
   {
-    "id": "veh_ramp_deploy",
-    "type": "vehicle_part",
-    "name": { "str": "folding loading ramp" },
-    "categories": [ "hull" ],
-    "durability": 250,
-    "description": "A hinged steel ramp that folds up flush against the bed for travel and drops down to let another vehicle drive onto the deck above.  Open it to deploy the ramp.",
-    "item": "sheet_metal",
-    "location": "structure",
-    "flags": [ "VEH_RAMP_UP", "VEH_RAMP_DOWN", "BOARDABLE", "OPENABLE", "DOOR" ],
-    "requirements": {
-      "install": {
-        "skills": [ [ "mechanics", 3 ] ],
-        "time": "60 m",
-        "using": [ [ "welding_standard", 200 ], [ "vehicle_bolt_install", 2 ] ]
-      },
-      "removal": { "skills": [ [ "mechanics", 2 ] ], "time": "30 m", "using": [ [ "vehicle_wrench_2", 1 ] ] },
-      "repair": { "skills": [ [ "mechanics", 3 ] ], "time": "8 m", "using": [ [ "repair_welding_lc_steel", 4 ] ] }
-    },
-    "breaks_into": "ig_vp_sheet_metal",
-    "damage_reduction": { "all": 15 },
-    "variants": [ { "symbols": "/", "symbols_broken": "#" } ]
-  },
-  {
     "id": "veh_ramp_fixed",
     "type": "vehicle_part",
     "name": { "str": "fixed loading ramp" },
