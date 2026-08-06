@@ -10557,6 +10557,16 @@ void map::update_pathfinding_cache( const tripoint_bub_ms &p ) const
         cur_value |= PathfindingFlag::GoesDown | PathfindingFlag::RampDown;
     }
 
+    if( veh != nullptr ) {
+        const optional_vpart_position vp = veh_at( p );
+        if( vp.part_with_feature( VPFLAG_VEH_RAMP_UP, true ) ) {
+            cur_value |= PathfindingFlag::GoesUp | PathfindingFlag::RampUp;
+        }
+        if( vp.part_with_feature( VPFLAG_VEH_RAMP_DOWN, true ) ) {
+            cur_value |= PathfindingFlag::GoesDown | PathfindingFlag::RampDown;
+        }
+    }
+
     if( terrain.has_flag( ter_furn_flag::TFLAG_SHARP ) && !this->has_vehicle_floor( p ) ) {
         cur_value |= PathfindingFlag::Sharp;
     }

@@ -13,6 +13,7 @@
 #include "type_id.h"
 #include "veh_type.h"
 #include "vehicle.h"
+#include "pathfinding.h"
 #include "vpart_position.h"
 
 static const vproto_id vehicle_prototype_car( "car" );
@@ -501,4 +502,47 @@ TEST_CASE( "deck_floor_below_true_only_over_walkable_roof", "[vehicle][flatbed]"
     CHECK_FALSE( here.deck_floor_below( tripoint_bub_ms( 40, 40, 1 ) ) );
     // The deck part's own z0 tile is not open air-above-a-deck -> false.
     CHECK_FALSE( here.deck_floor_below( *deck_tile + tripoint_rel_ms( 0, 0, -1 ) ) );
+}
+
+TEST_CASE( "pathfinding_routes_up_vehicle_ramp_onto_deck", "[vehicle][flatbed]" )
+{
+    clear_map();
+    clear_vehicles();
+    map &here = get_map();
+    build_test_map( ter_id( "t_pavement" ) );
+    for( int x = 0; x < SEEX * MAPSIZE; x++ ) {
+        for( int y = 0; y < SEEY * MAPSIZE; y++ ) {
+            here.ter_set( tripoint_bub_ms( x, y, 1 ), ter_id( "t_open_air" ) );
+        }
+    }
+    here.invalidate_map_cache( 0 );
+    here.invalidate_map_cache( 1 );
+    here.build_map_cache( 0, true );
+    here.build_map_cache( 1, true );
+    vehicle *truck = here.add_vehicle( vehicle_prototype_test_flatbed_truck,
+                                       tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( truck != nullptr );
+    // Ensure do_vehicle_caching runs with the truck present so veh_at() finds it
+    // when the lazy pathfinding cache is rebuilt on the first here.route() call.
+    here.build_map_cache( 0, true );
+
+    // Target: a deck tile at z+1. Start: ground behind the ramp at z0.
+    std::optional<tripoint_bub_ms> deck_tile;
+    for( const vpart_reference &vpr : truck->get_all_parts() ) {
+        if( vpr.info().has_flag( VPFLAG_WALKABLE_ROOF ) ) {
+            deck_tile = vpr.pos_bub( here ) + tripoint_rel_ms( 0, 0, 1 );
+            break;
+        }
+    }
+    REQUIRE( deck_tile.has_value() );
+    const tripoint_bub_ms start( 56, 60, 0 );
+
+    // Requires `#include "pathfinding.h"` in the test file.
+    pathfinding_settings settings;
+    settings.max_dist = 30;          // enough room to reach the ramp and deck
+    settings.max_length = 100;       // at least 2x max_dist
+    settings.allow_climb_stairs = true;   // ramps use the stair-climb path
+    const std::vector<tripoint_bub_ms> route =
+        here.route( start, pathfinding_target::point( *deck_tile ), settings );
+    CHECK_FALSE( route.empty() );          // a route up onto the deck exists
 }
