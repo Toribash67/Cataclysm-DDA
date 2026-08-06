@@ -13,6 +13,7 @@
 #include "type_id.h"
 #include "veh_type.h"
 #include "vehicle.h"
+#include "npc.h"
 #include "pathfinding.h"
 #include "vpart_position.h"
 
@@ -545,4 +546,42 @@ TEST_CASE( "pathfinding_routes_up_vehicle_ramp_onto_deck", "[vehicle][flatbed]" 
     const std::vector<tripoint_bub_ms> route =
         here.route( start, pathfinding_target::point( *deck_tile ), settings );
     CHECK_FALSE( route.empty() );          // a route up onto the deck exists
+}
+
+TEST_CASE( "npc_routes_up_ramp_onto_flatbed_deck", "[vehicle][flatbed]" )
+{
+    clear_map();
+    clear_vehicles();
+    map &here = get_map();
+    build_test_map( ter_id( "t_pavement" ) );
+    for( int x = 0; x < SEEX * MAPSIZE; x++ ) {
+        for( int y = 0; y < SEEY * MAPSIZE; y++ ) {
+            here.ter_set( tripoint_bub_ms( x, y, 1 ), ter_id( "t_open_air" ) );
+        }
+    }
+    here.invalidate_map_cache( 0 );
+    here.invalidate_map_cache( 1 );
+    here.build_map_cache( 0, true );
+    here.build_map_cache( 1, true );
+    vehicle *truck = here.add_vehicle( vehicle_prototype_test_flatbed_truck,
+                                       tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( truck != nullptr );
+
+    std::optional<tripoint_bub_ms> deck_tile;
+    for( const vpart_reference &vpr : truck->get_all_parts() ) {
+        if( vpr.info().has_flag( VPFLAG_WALKABLE_ROOF ) ) {
+            deck_tile = vpr.pos_bub( here ) + tripoint_rel_ms( 0, 0, 1 );
+            break;
+        }
+    }
+    REQUIRE( deck_tile.has_value() );
+
+    // Requires `#include "npc.h"` and `#include "pathfinding.h"` in the test file.
+    standard_npc npc( "DeckWalker", tripoint_bub_ms( 56, 60, 0 ), {}, 0, 8, 8, 8, 8 );
+    npc.setpos( here, tripoint_bub_ms( 56, 60, 0 ) );
+    // The Creature overload of route() uses the npc's own get_pathfinding_settings().
+    const std::vector<tripoint_bub_ms> route =
+        here.route( npc, pathfinding_target::point( *deck_tile ) );
+    CAPTURE( deck_tile->to_string() );
+    CHECK_FALSE( route.empty() );
 }
