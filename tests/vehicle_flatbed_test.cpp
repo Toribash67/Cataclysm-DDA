@@ -8,13 +8,14 @@
 #include "map.h"
 #include "map_helpers.h"
 #include "map_scale_constants.h"
+#include "monster.h"
+#include "npc.h"
+#include "pathfinding.h"
 #include "player_helpers.h"
 #include "point.h"
 #include "type_id.h"
 #include "veh_type.h"
 #include "vehicle.h"
-#include "npc.h"
-#include "pathfinding.h"
 #include "vpart_position.h"
 
 static const vproto_id vehicle_prototype_car( "car" );
@@ -582,6 +583,51 @@ TEST_CASE( "npc_routes_up_ramp_onto_flatbed_deck", "[vehicle][flatbed]" )
     // The Creature overload of route() uses the npc's own get_pathfinding_settings().
     const std::vector<tripoint_bub_ms> route =
         here.route( npc, pathfinding_target::point( *deck_tile ) );
+    CAPTURE( deck_tile->to_string() );
+    CHECK_FALSE( route.empty() );
+}
+
+TEST_CASE( "monster_routes_up_ramp_onto_flatbed_deck", "[vehicle][flatbed]" )
+{
+    clear_map();
+    clear_vehicles();
+    clear_creatures();
+    map &here = get_map();
+    build_test_map( ter_id( "t_pavement" ) );
+    for( int x = 0; x < SEEX * MAPSIZE; x++ ) {
+        for( int y = 0; y < SEEY * MAPSIZE; y++ ) {
+            here.ter_set( tripoint_bub_ms( x, y, 1 ), ter_id( "t_open_air" ) );
+        }
+    }
+    here.invalidate_map_cache( 0 );
+    here.invalidate_map_cache( 1 );
+    here.build_map_cache( 0, true );
+    here.build_map_cache( 1, true );
+    vehicle *truck = here.add_vehicle( vehicle_prototype_test_flatbed_truck,
+                                       tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( truck != nullptr );
+    // Ensure do_vehicle_caching runs with the truck present so veh_at() finds it
+    // when the lazy pathfinding cache is rebuilt on the first here.route() call.
+    here.build_map_cache( 0, true );
+
+    std::optional<tripoint_bub_ms> deck_tile;
+    for( const vpart_reference &vpr : truck->get_all_parts() ) {
+        if( vpr.info().has_flag( VPFLAG_WALKABLE_ROOF ) ) {
+            deck_tile = vpr.pos_bub( here ) + tripoint_rel_ms( 0, 0, 1 );
+            break;
+        }
+    }
+    REQUIRE( deck_tile.has_value() );
+
+    // Use a monster with max_dist > 0 (zombies have max_dist=0 and never call the
+    // pathfinder — they use straight-line movement instead).  mon_skitterbot has
+    // path_settings { max_dist: 5, allow_climb_stairs: true (default) }, which is
+    // enough to reach the ramp (~4 tiles away) and exercises the same Creature
+    // overload of map::route() that monsters use in-game.
+    // Requires `#include "monster.h"` and `#include "pathfinding.h"` in the test file.
+    monster &bot = spawn_test_monster( "mon_skitterbot", tripoint_bub_ms( 56, 60, 0 ) );
+    const std::vector<tripoint_bub_ms> route =
+        here.route( bot, pathfinding_target::point( *deck_tile ) );
     CAPTURE( deck_tile->to_string() );
     CHECK_FALSE( route.empty() );
 }
