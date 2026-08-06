@@ -1,7 +1,7 @@
 # Walkable carrier deck — design
 
 **Date:** 2026-08-06
-**Status:** Approved (design); implementation plan to be written next
+**Status:** Implemented
 **Builds on:** the multi-floor vehicles effort (PR #2–#9, merged) and the
 drive-on carrying feature Milestone 1 (branch `veh-drive-on-carrying`, PR #10).
 See `docs/superpowers/specs/2026-08-05-vehicle-drive-on-carrying-design.md` and
@@ -184,3 +184,35 @@ Per-mover coverage, to *prove* no mover's gate was missed:
 - Monster / NPC pathfinding + move execution (`src/pathfinding.cpp`,
   `src/monmove.cpp`, `src/npcmove.cpp` — exact sites confirmed during planning).
 - `tests/vehicle_flatbed_test.cpp` — per-mover walkable-deck tests.
+
+## Implementation notes
+
+(a) The feature landed across Tasks 1–8 on branch `veh-drive-on-carrying`:
+- **Data:** new vpart flag `WALKABLE_ROOF` (with its `json_flag` entry in
+  `data/json/vehicleparts/vp_flags.json`) and new roof part `veh_flatbed_deck`
+  (carries `WALKABLE_ROOF`; used on `test_flatbed_truck` bed mounts and also on
+  the ramp mounts so the tile directly above the ramp is a supported deck).
+- **Predicate:** `map::deck_floor_below` (`src/map.h` / `src/map.cpp`) — single
+  source of truth; returns true when the tile is open-air and the part one z-level
+  below carries `WALKABLE_ROOF`.
+- **Avatar ledge gate:** `src/game.cpp` — the `walk_move` ledge check is guarded
+  by `!deck_floor_below(dest)`, so stepping onto a flagged deck tile never
+  triggers the climb-down menu.
+- **On-foot ramp lift:** `src/avatar_action.cpp` — extended the terrain-RAMP_UP
+  handling to also fire for vehicle ramps (`veh_ramp_dir()` helper), lifting the
+  avatar to z+1 on the move onto the ramp.
+- **Pathfinding:** `src/map.cpp` (`update_pathfinding_cache`) marks ramp-adjacent
+  z+1 tiles as reachable; `src/pathfinding.cpp` neighbor expansion accepts them
+  as valid route nodes. Both changes are gated to vehicle ramp tiles only so
+  no non-ramp open-air tiles gain spurious pathfinding connectivity.
+
+(b) **KNOWN FOLLOW-ON — straight-line monster movement up the ramp.** Monsters
+that use the simple straight-line mover (`max_dist == 0`, e.g. standard zombies)
+never call the A* pathfinder; their `monster::move` / `can_move_to` path is not
+taught the ramp lift or deck-floor predicate and is NOT covered by this feature.
+Only pathfinding monsters (proven with `mon_skitterbot`, which has `max_dist > 0`
+and uses the pathing stack) are guaranteed to route up the ramp and onto the deck.
+Straight-line monster ramp ascent is a deferred follow-on task.
+
+(c) **Carried-while-driving** and the **vertical lock / grid-join** remain
+Milestone 2 and are explicitly out of scope.
