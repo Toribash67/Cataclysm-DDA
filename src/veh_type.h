@@ -124,6 +124,7 @@ enum vpart_bitflags : int {
     VPFLAG_VERTICAL_TRAVERSAL,
     VPFLAG_VEH_RAMP_UP,
     VPFLAG_VEH_RAMP_DOWN,
+    VPFLAG_WALKABLE_ROOF,
 
     NUM_VPFLAGS
 };

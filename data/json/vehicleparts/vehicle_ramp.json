@@ -21,5 +21,13 @@
     "breaks_into": "ig_vp_sheet_metal",
     "damage_reduction": { "all": 20 },
     "variants": [ { "symbols": "/", "symbols_broken": "#" } ]
+  },
+  {
+    "id": "veh_flatbed_deck",
+    "copy-from": "roof",
+    "type": "vehicle_part",
+    "name": { "str": "flatbed deck" },
+    "description": "A sturdy steel bed roof strong enough to stand on from above; another vehicle can be carried on it while people walk the deck alongside.",
+    "flags": [ "ROOF", "WALKABLE_ROOF" ]
   }
 ]

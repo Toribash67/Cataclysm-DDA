@@ -324,10 +324,10 @@
       { "x": 1, "y": 1, "parts": [ "hdframe", "seat" ] },
       { "x": 3, "y": 0, "parts": [ "hdframe", "wheel_mount_medium_steerable", "wheel_wide" ] },
       { "x": 3, "y": 1, "parts": [ "hdframe", "wheel_mount_medium_steerable", "wheel_wide" ] },
-      { "x": 0, "y": 0, "parts": [ "hdframe", "roof", "wheel_mount_medium", "wheel_wide" ] },
-      { "x": 0, "y": 1, "parts": [ "hdframe", "roof", "wheel_mount_medium", "wheel_wide" ] },
-      { "x": -1, "y": 0, "parts": [ "hdframe", "roof" ] },
-      { "x": -1, "y": 1, "parts": [ "hdframe", "roof" ] },
+      { "x": 0, "y": 0, "parts": [ "hdframe", "veh_flatbed_deck", "wheel_mount_medium", "wheel_wide" ] },
+      { "x": 0, "y": 1, "parts": [ "hdframe", "veh_flatbed_deck", "wheel_mount_medium", "wheel_wide" ] },
+      { "x": -1, "y": 0, "parts": [ "hdframe", "veh_flatbed_deck" ] },
+      { "x": -1, "y": 1, "parts": [ "hdframe", "veh_flatbed_deck" ] },
       { "x": -2, "y": 0, "parts": [ "veh_ramp_fixed" ] },
       { "x": -2, "y": 1, "parts": [ "veh_ramp_fixed" ] }
     ]

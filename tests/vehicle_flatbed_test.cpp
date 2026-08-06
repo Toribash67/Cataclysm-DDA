@@ -300,3 +300,23 @@ TEST_CASE( "test_car_drives_up_ramp_onto_parked_truck_bed", "[vehicle][flatbed]"
     }
     CHECK_FALSE( car_has_carried );
 }
+
+TEST_CASE( "test_flatbed_bed_has_walkable_roof_deck", "[vehicle][flatbed]" )
+{
+    clear_map();
+    clear_vehicles();
+    map &here = get_map();
+    build_test_map( ter_id( "t_pavement" ) );
+    vehicle *truck = here.add_vehicle( vehicle_prototype_test_flatbed_truck,
+                                       tripoint_bub_ms( 60, 60, 0 ), 0_degrees, 0, 0 );
+    REQUIRE( truck != nullptr );
+    // At least one bed part carries WALKABLE_ROOF, and it is a roof (provides fall support).
+    bool found_walkable_deck = false;
+    for( const vpart_reference &vpr : truck->get_all_parts() ) {
+        if( vpr.info().has_flag( VPFLAG_WALKABLE_ROOF ) ) {
+            found_walkable_deck = true;
+            CHECK( truck->roof_at_part( vpr.part_index() ) >= 0 );
+        }
+    }
+    CHECK( found_walkable_deck );
+}

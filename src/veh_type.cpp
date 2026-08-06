@@ -154,6 +154,7 @@ static const std::unordered_map<std::string, vpart_bitflags> vpart_bitflag_map =
     { "VERTICAL_TRAVERSAL", VPFLAG_VERTICAL_TRAVERSAL },
     { "VEH_RAMP_UP", VPFLAG_VEH_RAMP_UP },
     { "VEH_RAMP_DOWN", VPFLAG_VEH_RAMP_DOWN },
+    { "WALKABLE_ROOF", VPFLAG_WALKABLE_ROOF },
 };
 
 static std::map<vpart_id, vpart_migration> vpart_migrations;

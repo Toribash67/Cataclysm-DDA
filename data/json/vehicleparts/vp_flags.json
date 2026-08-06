@@ -716,6 +716,11 @@
     "info": "This part is a ramp that slopes up onto the vehicle, allowing another vehicle to drive up from below onto the deck."
   },
   {
+    "id": "WALKABLE_ROOF",
+    "type": "json_flag",
+    "info": "The open-air tile directly above this roof part is a walkable deck: creatures on the level above can stand and walk on it as if it were floor."
+  },
+  {
     "id": "WHEEL_MOUNT_CONCRETE_MIX",
     "type": "json_flag"
   },
