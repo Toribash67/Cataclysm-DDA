@@ -634,7 +634,14 @@ std::vector<tripoint_bub_ms> map::route( const tripoint_bub_ms &f,
         // valid_move is intentionally skipped here because the ramp mount carries a deck
         // part (ROOF) that would make valid_move return false, yet the ramp is traversable
         // by design (the same way avatar_action adjusts dest z without a valid_move check).
-        if( cur.z() < max.z() && ( cur_special & PathfindingFlag::RampUp ) ) {
+        // Terrain ramps are handled above (with valid_move) — exclude them here so this
+        // valid_move-skip does NOT weaken terrain-ramp routing (e.g. vehicle parked above
+        // a terrain ramp should NOT be reachable by pathing through the vehicle's floor).
+        const bool terrain_ramp =
+            parent_terrain.has_flag( ter_furn_flag::TFLAG_RAMP ) ||
+            parent_terrain.has_flag( ter_furn_flag::TFLAG_RAMP_UP ) ||
+            parent_terrain.has_flag( ter_furn_flag::TFLAG_RAMP_DOWN );
+        if( !terrain_ramp && cur.z() < max.z() && ( cur_special & PathfindingFlag::RampUp ) ) {
             path_data_layer &layer = pf.get_layer( cur.z() + 1 );
             for( size_t it = 0; it < 8; it++ ) {
                 const tripoint_bub_ms above( cur.x() + x_offset[it], cur.y() + y_offset[it], cur.z() + 1 );
@@ -646,7 +653,7 @@ std::vector<tripoint_bub_ms> map::route( const tripoint_bub_ms &f,
                               cur, above );
             }
         }
-        if( cur.z() > min.z() && ( cur_special & PathfindingFlag::RampDown ) ) {
+        if( !terrain_ramp && cur.z() > min.z() && ( cur_special & PathfindingFlag::RampDown ) ) {
             path_data_layer &layer = pf.get_layer( cur.z() - 1 );
             for( size_t it = 0; it < 8; it++ ) {
                 const tripoint_bub_ms below( cur.x() + x_offset[it], cur.y() + y_offset[it], cur.z() - 1 );
