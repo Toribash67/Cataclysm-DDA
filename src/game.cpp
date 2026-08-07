@@ -10544,7 +10544,8 @@ std::vector<std::string> game::get_dangerous_tile( const tripoint_bub_ms &dest_l
     }
 
     if( here.is_open_air( dest_loc ) ) {
-        if( !veh_dest && !u.has_effect_with_flag( json_flag_LEVITATION ) ) {
+        if( !veh_dest && !here.deck_floor_below( dest_loc ) &&
+            !u.has_effect_with_flag( json_flag_LEVITATION ) ) {
             harmful_stuff.emplace_back( "ledge" );
             if( harmful_stuff.size() == max ) {
                 return harmful_stuff;

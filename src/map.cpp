@@ -1501,6 +1501,13 @@ bool map::displace_vehicle( vehicle &veh, const tripoint_rel_ms &dp, const bool 
         } else if( has_flag( ter_furn_flag::TFLAG_RAMP_DOWN, src + dp ) ) {
             ramp_offset -= 1;
             veh.is_on_ramp = true;
+        } else if( const int vehicle_ramp = veh_ramp_dir( veh_at( src + dp ), &veh ) ) {
+            // A ramp *part* on a different, stationary vehicle lifts/drops this vehicle a
+            // z-level exactly like terrain ramps -- this is the flatbed drive-on path.
+            // Mirrors the per-part probe in advance_precalc_mounts and the collision skip
+            // in part_collision (all three key off veh_ramp_dir so they cannot diverge).
+            ramp_offset += vehicle_ramp;
+            veh.is_on_ramp = true;
         }
     }
 
@@ -1617,6 +1624,9 @@ bool map::displace_vehicle( vehicle &veh, const tripoint_rel_ms &dp, const bool 
                 psg_offset_z += 1;
             } else if( has_flag( ter_furn_flag::TFLAG_RAMP_DOWN, src + dp + ground_probe ) ) {
                 psg_offset_z -= 1;
+            } else {
+                // keep a rider aligned with the vehicle when it climbs a vehicle ramp part
+                psg_offset_z += veh_ramp_dir( veh_at( src + dp + ground_probe ), &veh );
             }
 
             // Place passenger on the new part location
@@ -2725,6 +2735,15 @@ bool map::has_vehicle_floor( const tripoint_bub_ms &p ) const
 {
     return veh_at( p ).part_with_feature( "BOARDABLE", false ) ||
            veh_at( p ).part_with_feature( "OBSTACLE", false );
+}
+
+bool map::deck_floor_below( const tripoint_bub_ms &p ) const
+{
+    if( !is_open_air( p ) ) {
+        return false;
+    }
+    const tripoint_bub_ms below( p.xy(), p.z() - 1 );
+    return veh_at( below ).part_with_feature( VPFLAG_WALKABLE_ROOF, false ).has_value();
 }
 
 void map::drop_everything( const tripoint_bub_ms &p )
@@ -10536,6 +10555,16 @@ void map::update_pathfinding_cache( const tripoint_bub_ms &p ) const
 
     if( terrain.has_flag( ter_furn_flag::TFLAG_RAMP_DOWN ) ) {
         cur_value |= PathfindingFlag::GoesDown | PathfindingFlag::RampDown;
+    }
+
+    if( veh != nullptr ) {
+        const optional_vpart_position vp = veh_at( p );
+        if( vp.part_with_feature( VPFLAG_VEH_RAMP_UP, true ) ) {
+            cur_value |= PathfindingFlag::GoesUp | PathfindingFlag::RampUp;
+        }
+        if( vp.part_with_feature( VPFLAG_VEH_RAMP_DOWN, true ) ) {
+            cur_value |= PathfindingFlag::GoesDown | PathfindingFlag::RampDown;
+        }
     }
 
     if( terrain.has_flag( ter_furn_flag::TFLAG_SHARP ) && !this->has_vehicle_floor( p ) ) {

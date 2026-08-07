@@ -311,5 +311,37 @@
       { "x": 1, "y": 0, "z": 1, "parts": [ "hdframe", "deck_floor", "cargo_space" ] },
       { "x": 1, "y": 1, "z": 1, "parts": [ "hdframe", "deck_floor", "seat" ] }
     ]
+  },
+  {
+    "id": "test_flatbed_truck",
+    "type": "vehicle",
+    "name": "Test Flatbed Truck",
+    "blueprint": [ "-----" ],
+    "parts": [
+      { "x": 2, "y": 0, "parts": [ "hdframe", "engine_electric" ] },
+      { "x": 2, "y": 1, "parts": [ "hdframe", "storage_battery" ] },
+      { "x": 1, "y": 0, "parts": [ "hdframe", "seat", "controls" ] },
+      { "x": 1, "y": 1, "parts": [ "hdframe", "seat" ] },
+      { "x": 3, "y": 0, "parts": [ "hdframe", "wheel_mount_medium_steerable", "wheel_wide" ] },
+      { "x": 3, "y": 1, "parts": [ "hdframe", "wheel_mount_medium_steerable", "wheel_wide" ] },
+      { "x": 0, "y": 0, "parts": [ "hdframe", "veh_flatbed_deck", "wheel_mount_medium", "wheel_wide" ] },
+      { "x": 0, "y": 1, "parts": [ "hdframe", "veh_flatbed_deck", "wheel_mount_medium", "wheel_wide" ] },
+      { "x": -1, "y": 0, "parts": [ "hdframe", "veh_flatbed_deck" ] },
+      { "x": -1, "y": 1, "parts": [ "hdframe", "veh_flatbed_deck" ] },
+      { "x": -2, "y": 0, "parts": [ "veh_ramp_fixed", "veh_flatbed_deck" ] },
+      { "x": -2, "y": 1, "parts": [ "veh_ramp_fixed", "veh_flatbed_deck" ] }
+    ]
+  },
+  {
+    "id": "test_car",
+    "type": "vehicle",
+    "name": "Test Small Car",
+    "blueprint": [ "--" ],
+    "parts": [
+      { "x": 0, "y": 0, "parts": [ "frame", "seat", "controls" ] },
+      { "x": 1, "y": 0, "parts": [ "frame", "engine_electric", "storage_battery" ] },
+      { "x": 0, "y": 0, "parts": [ "wheel_mount_light", "wheel_motorbike" ] },
+      { "x": 1, "y": 0, "parts": [ "wheel_mount_light_steerable", "wheel_motorbike" ] }
+    ]
   }
 ]

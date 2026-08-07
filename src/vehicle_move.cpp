@@ -833,6 +833,25 @@ static void terrain_collision_data( map &here, const tripoint_bub_ms &p, bool ba
     density = bash_min;
 }
 
+// Returns +1 if `ovp` holds a VEH_RAMP_UP part on a different, stationary vehicle,
+// -1 for VEH_RAMP_DOWN, 0 otherwise.
+// Called from displace_vehicle (the actual z-transition), advance_precalc_mounts (per-part
+// z-lift), and part_collision (collision skip) so all sites key off one predicate and cannot
+// diverge.
+int veh_ramp_dir( const optional_vpart_position &ovp, const vehicle *mover )
+{
+    if( !ovp || &ovp->vehicle() == mover || ovp->vehicle().velocity != 0 ) {
+        return 0;
+    }
+    if( ovp->part_with_feature( VPFLAG_VEH_RAMP_UP, true ) ) {
+        return +1;
+    }
+    if( ovp->part_with_feature( VPFLAG_VEH_RAMP_DOWN, true ) ) {
+        return -1;
+    }
+    return 0;
+}
+
 veh_collision vehicle::part_collision( map &here, int part, const tripoint_abs_ms &p,
                                        bool just_detect, bool bash_floor, bool vertical )
 {
@@ -855,9 +874,17 @@ veh_collision vehicle::part_collision( map &here, int part, const tripoint_abs_m
     }
 
     const optional_vpart_position ovp = here.veh_at( p );
+    // A ramp *part* on a different, stationary vehicle is a climb surface, not an obstacle:
+    // a vehicle driving onto it is lifted to a different z by advance_precalc_mounts (the
+    // flatbed-loading path), exactly as a terrain ramp lifts it without colliding. The
+    // horizontal collision pass runs before that z-lift is applied to precalc, so without
+    // this skip the ramp part would be seen as a solid vehicle at the same z and bounce the
+    // mover back. Terrain ramps avoid this simply by having no obstacle at the tile.
+    // veh_ramp_dir() also gates OPENABLE ramps on their open state, matching the z-lift gate.
+    const bool onto_veh_ramp = !bash_floor && veh_ramp_dir( ovp, this ) != 0;
     // Disable vehicle/critter collisions when bashing floor
     // TODO: More elegant code
-    const bool is_veh_collision = !bash_floor && ovp && &ovp->vehicle() != this;
+    const bool is_veh_collision = !bash_floor && !onto_veh_ramp && ovp && &ovp->vehicle() != this;
     const bool is_body_collision = !bash_floor && critter != nullptr;
 
     veh_collision ret;

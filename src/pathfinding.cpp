@@ -629,6 +629,42 @@ std::vector<tripoint_bub_ms> map::route( const tripoint_bub_ms &f,
                               cur, below );
             }
         }
+        // Vehicle loading ramps: a parked vehicle with VEH_RAMP_UP/DOWN lets creatures
+        // walk up/down onto the carrier deck, mirroring the avatar_action ramp-lift path.
+        // valid_move is intentionally skipped here because the ramp mount carries a deck
+        // part (ROOF) that would make valid_move return false, yet the ramp is traversable
+        // by design (the same way avatar_action adjusts dest z without a valid_move check).
+        // Terrain ramps are handled above (with valid_move) — exclude them here so this
+        // valid_move-skip does NOT weaken terrain-ramp routing (e.g. vehicle parked above
+        // a terrain ramp should NOT be reachable by pathing through the vehicle's floor).
+        const bool terrain_ramp =
+            parent_terrain.has_flag( ter_furn_flag::TFLAG_RAMP ) ||
+            parent_terrain.has_flag( ter_furn_flag::TFLAG_RAMP_UP ) ||
+            parent_terrain.has_flag( ter_furn_flag::TFLAG_RAMP_DOWN );
+        if( !terrain_ramp && cur.z() < max.z() && ( cur_special & PathfindingFlag::RampUp ) ) {
+            path_data_layer &layer = pf.get_layer( cur.z() + 1 );
+            for( size_t it = 0; it < 8; it++ ) {
+                const tripoint_bub_ms above( cur.x() + x_offset[it], cur.y() + y_offset[it], cur.z() + 1 );
+                if( !inbounds( above ) ) {
+                    continue;
+                }
+                pf.add_point( layer.gscore[parent_index] + 4,
+                              layer.score[parent_index] + 4 + 2 * rl_dist( above, t ),
+                              cur, above );
+            }
+        }
+        if( !terrain_ramp && cur.z() > min.z() && ( cur_special & PathfindingFlag::RampDown ) ) {
+            path_data_layer &layer = pf.get_layer( cur.z() - 1 );
+            for( size_t it = 0; it < 8; it++ ) {
+                const tripoint_bub_ms below( cur.x() + x_offset[it], cur.y() + y_offset[it], cur.z() - 1 );
+                if( !inbounds( below ) ) {
+                    continue;
+                }
+                pf.add_point( layer.gscore[parent_index] + 4,
+                              layer.score[parent_index] + 4 + 2 * rl_dist( below, t ),
+                              cur, below );
+            }
+        }
 
     } while( !done && !pf.empty() );
 
