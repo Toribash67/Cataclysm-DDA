@@ -1,0 +1,19 @@
+name: Notify Guide
+
+on:
+  push:
+    branches: [master]
+
+permissions: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger guide rebuild
+        run: |
+          curl -sSf -X POST \
+            -H "Authorization: Bearer ${{ secrets.GUIDE_DISPATCH_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/Toribash67/cdda-guide/dispatches \
+            -d '{"event_type":"game-updated"}'
