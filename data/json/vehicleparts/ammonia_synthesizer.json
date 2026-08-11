@@ -12,7 +12,6 @@
     "description": "Converts clean water into liquid ammonia over time while toggled on and supplied with grid power.  It draws water from any tank on the vehicle and fills any tank that can hold ammonia.  Toggle it in the vehicle's electronics controls.",
     "epower": "-50 W",
     "item": "ammonia_synthesizer",
-    "size": "400 L",
     "location": "center",
     "fluid_converter": { "input": "water_clean", "output": "ammonia_liquid", "energy_per_unit": "30000 kJ", "max_rate": 4 },
     "requirements": {

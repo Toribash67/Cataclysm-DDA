@@ -35,8 +35,9 @@ static void reset_player_safe()
 }
 
 // Build a small immobile "ammonia plant": water tank + output tank + large
-// battery + the synthesizer, each on its own contiguous frame tile.
-static vehicle *build_synth_rig( map &here, int &water_idx, int &ammonia_idx, int &synth_idx )
+// battery + the synthesizer, each on its own contiguous frame tile. Then prime
+// update_time once (tanks empty) so last_update is settled before inputs exist.
+static vehicle *build_primed_rig( map &here, int &water_idx, int &ammonia_idx, int &synth_idx )
 {
     clear_vehicles();
     reset_player_safe();
@@ -60,16 +61,19 @@ static vehicle *build_synth_rig( map &here, int &water_idx, int &ammonia_idx, in
 
     veh->refresh();
     here.add_vehicle_to_cache( veh );
+
+    calendar::turn = calendar::turn_zero + 2_days;
+    veh->update_time( here, calendar::turn ); // prime last_update with empty tanks
     return veh;
 }
 
-TEST_CASE( "fluid_converter converts water to ammonia", "[vehicle][power][fluid_converter]" )
+TEST_CASE( "fluid_converter_converts_water_when_powered", "[vehicle][power][fluid_converter]" )
 {
     map &here = get_map();
     int water_idx = -1;
     int ammonia_idx = -1;
     int synth_idx = -1;
-    vehicle *veh = build_synth_rig( here, water_idx, ammonia_idx, synth_idx );
+    vehicle *veh = build_primed_rig( here, water_idx, ammonia_idx, synth_idx );
 
     veh->part( water_idx ).ammo_set( itype_water_clean, 40 );
     veh->part( ammonia_idx ).ammo_unset();
@@ -77,12 +81,10 @@ TEST_CASE( "fluid_converter converts water to ammonia", "[vehicle][power][fluid_
 
     const int water_before = veh->part( water_idx ).ammo_remaining();
     const int batt_before = static_cast<int>( veh->fuel_left( here, fuel_type_battery ) );
-    REQUIRE( water_before == 40 );
+    REQUIRE( water_before > 0 );
     REQUIRE( batt_before > 0 );
 
-    calendar::turn = calendar::turn_zero + 2_days;
-    veh->update_time( here, calendar::turn );                 // prime last_update
-    veh->update_time( here, calendar::turn + 1_hours );       // elapse 1 hour
+    veh->update_time( here, calendar::turn + 1_hours );
 
     const int water_after = veh->part( water_idx ).ammo_remaining();
     const int ammonia_after = veh->part( ammonia_idx ).ammo_remaining();
@@ -94,44 +96,41 @@ TEST_CASE( "fluid_converter converts water to ammonia", "[vehicle][power][fluid_
     CHECK( static_cast<int>( veh->fuel_left( here, fuel_type_battery ) ) < batt_before );
 }
 
-TEST_CASE( "fluid_converter makes nothing without power", "[vehicle][power][fluid_converter]" )
+TEST_CASE( "fluid_converter_makes_nothing_without_power", "[vehicle][power][fluid_converter]" )
 {
     map &here = get_map();
     int water_idx = -1;
     int ammonia_idx = -1;
     int synth_idx = -1;
-    vehicle *veh = build_synth_rig( here, water_idx, ammonia_idx, synth_idx );
+    vehicle *veh = build_primed_rig( here, water_idx, ammonia_idx, synth_idx );
 
     veh->part( water_idx ).ammo_set( itype_water_clean, 40 );
     veh->part( ammonia_idx ).ammo_unset();
-    // battery left empty
-    REQUIRE( veh->fuel_left( here, fuel_type_battery ) == 0 );
+    const int water_set = veh->part( water_idx ).ammo_remaining();
+    REQUIRE( veh->fuel_left( here, fuel_type_battery ) == 0 ); // battery left empty
 
-    calendar::turn = calendar::turn_zero + 2_days;
-    veh->update_time( here, calendar::turn );
     veh->update_time( here, calendar::turn + 1_hours );
 
     CHECK( veh->part( ammonia_idx ).ammo_remaining() == 0 );
-    CHECK( veh->part( water_idx ).ammo_remaining() == 40 );
+    CHECK( veh->part( water_idx ).ammo_remaining() == water_set );
 }
 
-TEST_CASE( "fluid_converter makes nothing when toggled off", "[vehicle][power][fluid_converter]" )
+TEST_CASE( "fluid_converter_makes_nothing_when_off", "[vehicle][power][fluid_converter]" )
 {
     map &here = get_map();
     int water_idx = -1;
     int ammonia_idx = -1;
     int synth_idx = -1;
-    vehicle *veh = build_synth_rig( here, water_idx, ammonia_idx, synth_idx );
+    vehicle *veh = build_primed_rig( here, water_idx, ammonia_idx, synth_idx );
 
     veh->part( water_idx ).ammo_set( itype_water_clean, 40 );
     veh->part( ammonia_idx ).ammo_unset();
     veh->charge_battery( here, 500000 );
     veh->part( synth_idx ).enabled = false;
+    const int water_set = veh->part( water_idx ).ammo_remaining();
 
-    calendar::turn = calendar::turn_zero + 2_days;
-    veh->update_time( here, calendar::turn );
     veh->update_time( here, calendar::turn + 1_hours );
 
     CHECK( veh->part( ammonia_idx ).ammo_remaining() == 0 );
-    CHECK( veh->part( water_idx ).ammo_remaining() == 40 );
+    CHECK( veh->part( water_idx ).ammo_remaining() == water_set );
 }

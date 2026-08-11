@@ -384,6 +384,11 @@
     "type": "json_flag"
   },
   {
+    "id": "FLUID_CONVERTER",
+    "type": "json_flag",
+    "info": "While turned on, converts one stored liquid into another over time, consuming battery power."
+  },
+  {
     "id": "GASTANK",
     "type": "json_flag"
   },
