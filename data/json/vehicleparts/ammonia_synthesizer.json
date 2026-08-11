@@ -1,0 +1,35 @@
+[
+  {
+    "type": "vehicle_part",
+    "id": "ammonia_synthesizer",
+    "name": { "str": "ammonia synthesizer" },
+    "looks_like": "autoclave",
+    "categories": [ "utility" ],
+    "broken_color": "dark_gray",
+    "damage_modifier": 80,
+    "durability": 250,
+    "description": "Converts clean water into liquid ammonia over time while toggled on and supplied with grid power.  It draws water from any tank on the vehicle and fills any tank that can hold ammonia.  Toggle it in the vehicle's electronics controls.",
+    "epower": "-50 W",
+    "item": "ammonia_synthesizer",
+    "location": "center",
+    "fluid_converter": { "input": "water_clean", "output": "ammonia_liquid", "energy_per_unit": "30000 kJ", "max_rate": 4 },
+    "requirements": {
+      "install": { "skills": [ [ "mechanics", 4 ], [ "electronics", 3 ] ], "time": "60 m", "using": [ [ "vehicle_wrench_2", 1 ] ] },
+      "removal": { "skills": [ [ "mechanics", 3 ] ], "time": "30 m", "using": [ [ "vehicle_wrench_2", 1 ] ] },
+      "repair": {
+        "skills": [ [ "mechanics", 4 ], [ "electronics", 3 ] ],
+        "time": "30 m",
+        "using": [ [ "repair_welding_standard", 20 ] ]
+      }
+    },
+    "flags": [ "FLUID_CONVERTER", "ENABLED_DRAINS_EPOWER", "OBSTACLE", "COVERED" ],
+    "breaks_into": [
+      { "item": "steel_lump", "count": [ 8, 13 ] },
+      { "item": "steel_chunk", "count": [ 8, 13 ] },
+      { "item": "scrap", "charges": [ 8, 13 ] },
+      { "item": "hose", "prob": 50 },
+      { "item": "cable", "charges": [ 1, 3 ] }
+    ],
+    "variants": [ { "symbols": "R", "symbols_broken": "#" } ]
+  }
+]

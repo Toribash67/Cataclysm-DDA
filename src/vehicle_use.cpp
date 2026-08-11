@@ -365,6 +365,8 @@ void vehicle::build_electronics_menu( map &here, veh_menu &menu )
                 "TOGGLE_SCOOP", "SCOOP" );
     add_toggle( pgettext( "electronics menu option", "water purifier" ),
                 "TOGGLE_WATER_PURIFIER", "WATER_PURIFIER" );
+    add_toggle( pgettext( "electronics menu option", "ammonia synthesizer" ),
+                "TOGGLE_FLUID_CONVERTER", "FLUID_CONVERTER" );
     add_toggle( pgettext( "electronics menu option", "smart controller" ),
                 "TOGGLE_SMART_ENGINE_CONTROLLER", "SMART_ENGINE_CONTROLLER" );
 

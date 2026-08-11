@@ -161,6 +161,23 @@
   },
   {
     "type": "ITEM",
+    "id": "ammonia_synthesizer",
+    "name": { "str": "ammonia synthesizer" },
+    "description": "A compact chemical reactor assembled from salvaged ammonia-machine components.  Mounted on a vehicle alongside a water tank, an output tank, and a power supply, it electrolyzes brine and fixes nitrogen to synthesize ammonia on its own, as long as it has clean water and electricity.",
+    "category": "veh_parts",
+    "price": "8 kUSD",
+    "price_postapoc": "1 kUSD",
+    "symbol": ";",
+    "color": "light_gray",
+    "material": [ "steel" ],
+    "weight": "480 kg",
+    "volume": "400 L",
+    "longest_side": "300 cm",
+    "to_hit": { "grip": "bad", "length": "long", "surface": "any", "balance": "clumsy" },
+    "flags": [ "TRADER_AVOID" ]
+  },
+  {
+    "type": "ITEM",
     "id": "dishwasher",
     "name": { "str": "portable dishwasher" },
     "description": "A very small dishwasher designed for use in vehicles.",

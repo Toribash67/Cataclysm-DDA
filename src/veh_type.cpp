@@ -139,6 +139,7 @@ static const std::unordered_map<std::string, vpart_bitflags> vpart_bitflag_map =
     { "WASHING_MACHINE", VPFLAG_WASHING_MACHINE },
     { "DISHWASHER", VPFLAG_DISHWASHER },
     { "FLUIDTANK", VPFLAG_FLUIDTANK },
+    { "FLUID_CONVERTER", VPFLAG_FLUID_CONVERTER },
     { "REACTOR", VPFLAG_REACTOR },
     { "RAIL", VPFLAG_RAIL },
     { "TURRET_CONTROLS", VPFLAG_TURRET_CONTROLS },
@@ -430,6 +431,19 @@ void vpart_info::load( const JsonObject &jo, const std::string &src )
         assign( wb_jo, "multiplier", workbench_info->multiplier, strict );
         assign( wb_jo, "mass", workbench_info->allowed_mass, strict );
         assign( wb_jo, "volume", workbench_info->allowed_volume, strict );
+    }
+
+    if( has_flag( "FLUID_CONVERTER" ) ) {
+        if( !fluid_converter_info ) {
+            fluid_converter_info.emplace();
+        }
+
+        JsonObject fc_jo = jo.get_object( "fluid_converter" );
+        assign( fc_jo, "input", fluid_converter_info->input, strict );
+        assign( fc_jo, "output", fluid_converter_info->output, strict );
+        assign( fc_jo, "byproduct", fluid_converter_info->byproduct, strict );
+        assign( fc_jo, "energy_per_unit", fluid_converter_info->energy_per_unit, strict );
+        assign( fc_jo, "max_rate", fluid_converter_info->max_rate, strict );
     }
 
     if( has_flag( "VEH_TOOLS" ) ) {
