@@ -18,7 +18,11 @@
     "requirements": {
       "install": { "skills": [ [ "mechanics", 4 ], [ "electronics", 3 ] ], "time": "60 m", "using": [ [ "vehicle_wrench_2", 1 ] ] },
       "removal": { "skills": [ [ "mechanics", 3 ] ], "time": "30 m", "using": [ [ "vehicle_wrench_2", 1 ] ] },
-      "repair": { "skills": [ [ "mechanics", 4 ], [ "electronics", 3 ] ], "time": "30 m", "using": [ [ "repair_welding_standard", 20 ] ] }
+      "repair": {
+        "skills": [ [ "mechanics", 4 ], [ "electronics", 3 ] ],
+        "time": "30 m",
+        "using": [ [ "repair_welding_standard", 20 ] ]
+      }
     },
     "flags": [ "FLUID_CONVERTER", "ENABLED_DRAINS_EPOWER", "OBSTACLE", "COVERED" ],
     "breaks_into": [

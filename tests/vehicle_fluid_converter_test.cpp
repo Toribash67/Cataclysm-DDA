@@ -42,7 +42,8 @@ static vehicle *build_synth_rig( map &here, int &water_idx, int &ammonia_idx, in
     reset_player_safe();
     build_test_map( ter_id( "t_pavement" ) );
 
-    vehicle *veh = here.add_vehicle( vehicle_prototype_none, tripoint_bub_ms{ 5, 5, 0 }, 0_degrees, 0, 0 );
+    const tripoint_bub_ms origin{ 5, 5, 0 };
+    vehicle *veh = here.add_vehicle( vehicle_prototype_none, origin, 0_degrees, 0, 0 );
     REQUIRE( veh != nullptr );
 
     const auto add_part = [&]( const point_rel_ms & mount, const vpart_id & vpid ) {
@@ -62,7 +63,7 @@ static vehicle *build_synth_rig( map &here, int &water_idx, int &ammonia_idx, in
     return veh;
 }
 
-TEST_CASE( "fluid_converter converts water to ammonia when powered", "[vehicle][power][fluid_converter]" )
+TEST_CASE( "fluid_converter converts water to ammonia", "[vehicle][power][fluid_converter]" )
 {
     map &here = get_map();
     int water_idx = -1;

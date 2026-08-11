@@ -8663,18 +8663,22 @@ void vehicle::update_time( map &here, const time_point &update_to )
             }
             const vpslot_fluid_converter &fc = *conv.info().fluid_converter_info;
             const item out_probe( fc.output );
-            const auto dst = std::find_if( parts.begin(), parts.end(), [&]( const vehicle_part & e ) {
+            auto dst = std::find_if( parts.begin(), parts.end(), [&]( const vehicle_part & e ) {
                 return e.is_tank() && e.can_reload( out_probe );
             } );
             if( dst == parts.end() ) {
                 continue;
             }
-            const int energy_per_unit_kj = std::max( 1,
-                    static_cast<int>( units::to_millijoule( fc.energy_per_unit ) / 1000000 ) );
+            const auto energy_mj = units::to_millijoule( fc.energy_per_unit );
+            const int energy_per_unit_kj = std::max( 1, static_cast<int>( energy_mj / 1000000 ) );
             const int water_avail = static_cast<int>( fuel_left( here, fc.input ) );
-            const int energy_cap = static_cast<int>( fuel_left( here, itype_battery ) / energy_per_unit_kj );
-            const int rate_cap = fc.max_rate > 0 ? roll_remainder( fc.max_rate * elapsed_hours ) : water_avail;
-            const int qty = std::min( { water_avail, energy_cap, rate_cap } );
+            const int battery_kj = static_cast<int>( fuel_left( here, itype_battery ) );
+            const int energy_cap = battery_kj / energy_per_unit_kj;
+            int rate_cap = water_avail;
+            if( fc.max_rate > 0 ) {
+                rate_cap = roll_remainder( fc.max_rate * elapsed_hours );
+            }
+            const int qty = std::min( water_avail, std::min( energy_cap, rate_cap ) );
             if( qty > 0 ) {
                 drain( here, fc.input, qty );
                 dst->ammo_set( fc.output, dst->ammo_remaining() + qty );
