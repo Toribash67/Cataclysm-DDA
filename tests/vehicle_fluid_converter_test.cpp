@@ -79,13 +79,7 @@ TEST_CASE( "fluid_converter_converts_water_when_powered", "[vehicle][power][flui
     veh->part( water_idx ).ammo_set( itype_water_clean, 40 );
     veh->part( ammonia_idx ).ammo_unset();
     veh->charge_battery( here, 500000 );
-
-    // Diagnostics: fail-fast on whichever precondition is broken.
-    REQUIRE( veh->part( synth_idx ).info().has_flag( "FLUID_CONVERTER" ) );
-    REQUIRE( veh->part( synth_idx ).info().fluid_converter_info.has_value() );
-    REQUIRE( veh->part( synth_idx ).enabled );
-    REQUIRE( veh->part( water_idx ).ammo_current() == itype_water_clean );
-    REQUIRE( veh->part( ammonia_idx ).can_reload( item( itype_ammonia_liquid ) ) );
+    veh->part( synth_idx ).enabled = true; // ENABLED_DRAINS_EPOWER parts start off
 
     const int water_before = veh->part( water_idx ).ammo_remaining();
     const int batt_before = static_cast<int>( veh->fuel_left( here, fuel_type_battery ) );
@@ -114,6 +108,7 @@ TEST_CASE( "fluid_converter_makes_nothing_without_power", "[vehicle][power][flui
 
     veh->part( water_idx ).ammo_set( itype_water_clean, 40 );
     veh->part( ammonia_idx ).ammo_unset();
+    veh->part( synth_idx ).enabled = true; // on, but no power available
     const int water_set = veh->part( water_idx ).ammo_remaining();
     REQUIRE( veh->fuel_left( here, fuel_type_battery ) == 0 ); // battery left empty
 
