@@ -718,7 +718,11 @@
     "time": "4 h",
     "autolearn": true,
     "using": [ [ "blacksmithing_standard", 3 ], [ "steel_standard", 2 ] ],
-    "proficiencies": [ { "proficiency": "prof_metalworking" }, { "proficiency": "prof_blacksmithing" }, { "proficiency": "prof_toolsmithing" } ],
+    "proficiencies": [
+      { "proficiency": "prof_metalworking" },
+      { "proficiency": "prof_blacksmithing" },
+      { "proficiency": "prof_toolsmithing" }
+    ],
     "tools": [ [ [ "swage", -1 ] ] ]
   },
   {
@@ -749,7 +753,11 @@
     "time": "5 h",
     "autolearn": true,
     "using": [ [ "welding_standard", 200 ], [ "steel_standard", 6 ] ],
-    "proficiencies": [ { "proficiency": "prof_metalworking" }, { "proficiency": "prof_welding" }, { "proficiency": "prof_high_pressure_systems" } ],
+    "proficiencies": [
+      { "proficiency": "prof_metalworking" },
+      { "proficiency": "prof_welding" },
+      { "proficiency": "prof_high_pressure_systems" }
+    ],
     "qualities": [ { "id": "HAMMER", "level": 2 } ],
     "components": [ [ [ "sheet_metal", 4 ] ], [ [ "hd_pipe_fittings", 1 ] ] ]
   },
@@ -765,7 +773,11 @@
     "time": "20 h",
     "autolearn": true,
     "using": [ [ "welding_standard", 900 ], [ "steel_standard", 40 ] ],
-    "proficiencies": [ { "proficiency": "prof_metalworking" }, { "proficiency": "prof_welding" }, { "proficiency": "prof_high_pressure_systems" } ],
+    "proficiencies": [
+      { "proficiency": "prof_metalworking" },
+      { "proficiency": "prof_welding" },
+      { "proficiency": "prof_high_pressure_systems" }
+    ],
     "qualities": [ { "id": "HAMMER", "level": 3 }, { "id": "SAW_M", "level": 2 } ],
     "components": [ [ [ "sheet_metal", 24 ] ], [ [ "hd_pipe_fittings", 4 ] ] ]
   },
@@ -814,9 +826,21 @@
     "autolearn": [ [ "fabrication", 7 ], [ "mechanics", 6 ] ],
     "book_learn": [ [ "manual_mechanics", 3 ], [ "advanced_electronics", 3 ] ],
     "using": [ [ "welding_standard", 80 ], [ "soldering_standard", 10 ] ],
-    "proficiencies": [ { "proficiency": "prof_metalworking" }, { "proficiency": "prof_basic_engines" }, { "proficiency": "prof_high_pressure_systems" } ],
+    "proficiencies": [
+      { "proficiency": "prof_metalworking" },
+      { "proficiency": "prof_basic_engines" },
+      { "proficiency": "prof_high_pressure_systems" }
+    ],
     "qualities": [ { "id": "HAMMER", "level": 2 }, { "id": "WRENCH", "level": 1 }, { "id": "SCREW", "level": 1 } ],
-    "components": [ [ [ "motor", 1 ] ], [ [ "hd_pipe", 2 ] ], [ [ "hd_pipe_fittings", 1 ] ], [ [ "hd_valve", 1 ] ], [ [ "sheet_metal", 4 ] ], [ [ "cable", 50 ] ], [ [ "power_supply", 1 ] ] ]
+    "components": [
+      [ [ "motor", 1 ] ],
+      [ [ "hd_pipe", 2 ] ],
+      [ [ "hd_pipe_fittings", 1 ] ],
+      [ [ "hd_valve", 1 ] ],
+      [ [ "sheet_metal", 4 ] ],
+      [ [ "cable", 50 ] ],
+      [ [ "power_supply", 1 ] ]
+    ]
   },
   {
     "result": "can_sealer",
