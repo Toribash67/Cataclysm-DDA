@@ -6887,7 +6887,7 @@ void vehicle::refresh( const bool remove_fakes )
         if( vpi.has_flag( "FUNNEL" ) ) {
             funnels.push_back( p );
         }
-        if( vpi.has_flag( VPFLAG_FLUID_CONVERTER ) ) {
+        if( vpi.has_flag( "FLUID_CONVERTER" ) ) {
             fluid_converters.push_back( p );
         }
         if( vpi.has_flag( "UNMOUNT_ON_MOVE" ) || vpi.has_flag( VPFLAG_POWER_TRANSFER ) ) {
@@ -8663,15 +8663,18 @@ void vehicle::update_time( map &here, const time_point &update_to )
             }
             const vpslot_fluid_converter &fc = *conv.info().fluid_converter_info;
             const item out_probe( fc.output );
+            auto src = std::find_if( parts.begin(), parts.end(), [&]( const vehicle_part & e ) {
+                return e.is_tank() && e.ammo_current() == fc.input && e.ammo_remaining() > 0;
+            } );
             auto dst = std::find_if( parts.begin(), parts.end(), [&]( const vehicle_part & e ) {
                 return e.is_tank() && e.can_reload( out_probe );
             } );
-            if( dst == parts.end() ) {
+            if( src == parts.end() || dst == parts.end() ) {
                 continue;
             }
             const auto energy_mj = units::to_millijoule( fc.energy_per_unit );
             const int energy_per_unit_kj = std::max( 1, static_cast<int>( energy_mj / 1000000 ) );
-            const int water_avail = static_cast<int>( fuel_left( here, fc.input ) );
+            const int water_avail = src->ammo_remaining();
             const int battery_kj = static_cast<int>( fuel_left( here, itype_battery ) );
             const int energy_cap = battery_kj / energy_per_unit_kj;
             int rate_cap = water_avail;
@@ -8680,7 +8683,7 @@ void vehicle::update_time( map &here, const time_point &update_to )
             }
             const int qty = std::min( water_avail, std::min( energy_cap, rate_cap ) );
             if( qty > 0 ) {
-                drain( here, fc.input, qty );
+                src->ammo_set( fc.input, water_avail - qty );
                 dst->ammo_set( fc.output, dst->ammo_remaining() + qty );
                 discharge_battery( here, qty * energy_per_unit_kj );
                 invalidate_mass();
