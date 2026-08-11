@@ -1,0 +1,29 @@
+[
+  {
+    "type": "recipe",
+    "activity_level": "MODERATE_EXERCISE",
+    "result": "ammonia_synthesizer",
+    "category": "CC_OTHER",
+    "subcategory": "CSC_OTHER_PARTS",
+    "skill_used": "mechanics",
+    "skills_required": [ [ "electronics", 4 ], [ "chemistry", 4 ] ],
+    "difficulty": 7,
+    "time": "8 h",
+    "autolearn": false,
+    "book_learn": [ [ "adv_chemistry", 7 ], [ "recipe_labchem", 7 ] ],
+    "using": [ [ "welding_standard", 200 ] ],
+    "qualities": [ { "id": "HAMMER", "level": 2 }, { "id": "WRENCH", "level": 1 }, { "id": "SCREW", "level": 1 } ],
+    "proficiencies": [
+      { "proficiency": "prof_metalworking" },
+      { "proficiency": "prof_high_pressure_systems" },
+      { "proficiency": "prof_chemical_engineering" }
+    ],
+    "components": [
+      [ [ "ammonia_machine_reactor", 1 ] ],
+      [ [ "ammonia_machine_pipework", 1 ] ],
+      [ [ "nitrogen_generator", 1 ] ],
+      [ [ "electrolyzer_makeshift", 1 ] ],
+      [ [ "salt", 10 ] ]
+    ]
+  }
+]
