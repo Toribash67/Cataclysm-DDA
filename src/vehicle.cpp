@@ -6773,6 +6773,7 @@ void vehicle::refresh( const bool remove_fakes )
     sails.clear();
     water_wheels.clear();
     funnels.clear();
+    fluid_converters.clear();
     emitters.clear();
     relative_parts.clear();
     loose_parts.clear();
@@ -6885,6 +6886,9 @@ void vehicle::refresh( const bool remove_fakes )
         }
         if( vpi.has_flag( "FUNNEL" ) ) {
             funnels.push_back( p );
+        }
+        if( vpi.has_flag( VPFLAG_FLUID_CONVERTER ) ) {
+            fluid_converters.push_back( p );
         }
         if( vpi.has_flag( "UNMOUNT_ON_MOVE" ) || vpi.has_flag( VPFLAG_POWER_TRANSFER ) ) {
             loose_parts.push_back( p );
@@ -8563,7 +8567,8 @@ void vehicle::update_time( map &here, const time_point &update_to )
 
     // Weather stuff, only for z-levels >= 0
     // TODO: Have it wash cars from blood?
-    if( funnels.empty() && solar_panels.empty() && wind_turbines.empty() && water_wheels.empty() ) {
+    if( funnels.empty() && solar_panels.empty() && wind_turbines.empty() && water_wheels.empty() &&
+        fluid_converters.empty() ) {
         return;
     }
     // Get one weather data set per vehicle, they don't differ much across vehicle area
@@ -8644,6 +8649,38 @@ void vehicle::update_time( map &here, const time_point &update_to )
         if( energy_bat > 0 ) {
             add_msg_debug( debugmode::DF_VEHICLE, "%s got %d kJ energy from water wheels", name, energy_bat );
             charge_battery( here, energy_bat );
+        }
+    }
+    // Fluid converters: turn an input liquid into an output liquid over time while
+    // toggled on, capped by available input, grid energy, throughput, and run after the
+    // generation blocks above so the battery already reflects backfilled solar/wind/water.
+    if( !fluid_converters.empty() ) {
+        const double elapsed_hours = to_hours<double>( elapsed );
+        for( const int idx : fluid_converters ) {
+            vehicle_part &conv = parts[idx];
+            if( conv.is_unavailable() || !conv.enabled || !conv.info().fluid_converter_info ) {
+                continue;
+            }
+            const vpslot_fluid_converter &fc = *conv.info().fluid_converter_info;
+            const item out_probe( fc.output );
+            const auto dst = std::find_if( parts.begin(), parts.end(), [&]( const vehicle_part & e ) {
+                return e.is_tank() && e.can_reload( out_probe );
+            } );
+            if( dst == parts.end() ) {
+                continue;
+            }
+            const int energy_per_unit_kj = std::max( 1,
+                    static_cast<int>( units::to_millijoule( fc.energy_per_unit ) / 1000000 ) );
+            const int water_avail = static_cast<int>( fuel_left( here, fc.input ) );
+            const int energy_cap = static_cast<int>( fuel_left( here, itype_battery ) / energy_per_unit_kj );
+            const int rate_cap = fc.max_rate > 0 ? roll_remainder( fc.max_rate * elapsed_hours ) : water_avail;
+            const int qty = std::min( { water_avail, energy_cap, rate_cap } );
+            if( qty > 0 ) {
+                drain( here, fc.input, qty );
+                dst->ammo_set( fc.output, dst->ammo_remaining() + qty );
+                discharge_battery( here, qty * energy_per_unit_kj );
+                invalidate_mass();
+            }
         }
     }
 }
