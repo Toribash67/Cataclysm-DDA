@@ -10,6 +10,7 @@
 #include "point.h"
 #include "type_id.h"
 #include "units.h"
+#include "veh_type.h"
 #include "vehicle.h"
 
 static const efftype_id effect_blind( "blind" );
