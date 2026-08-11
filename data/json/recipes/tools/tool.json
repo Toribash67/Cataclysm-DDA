@@ -700,7 +700,7 @@
       [ [ "sheet_metal_small", 2 ] ],
       [ [ "cotton_patchwork", 2 ] ],
       [ [ "metal_tank", 1 ] ],
-      [ [ "nitrogen_membrane_filter", 1 ] ],
+      [ [ "filter_air", 4 ], [ "filter_air_makeshift", 6 ] ],
       [ [ "cable", 10 ] ],
       [ [ "salt", 4000 ] ],
       [ [ "hd_compressor", 1 ] ],
