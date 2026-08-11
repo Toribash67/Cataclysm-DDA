@@ -122,6 +122,7 @@ enum vpart_bitflags : int {
     // connectivity between decks is carried by frames. See docs
     // 2026-07-25-vehicle-vertical-frame-connectivity-design.
     VPFLAG_VERTICAL_TRAVERSAL,
+    VPFLAG_FLUID_CONVERTER,
 
     NUM_VPFLAGS
 };
@@ -160,6 +161,19 @@ struct vpslot_workbench {
     // Mass/volume allowed before a crafting speed penalty is applied
     units::mass allowed_mass = 0_gram;
     units::volume allowed_volume = 0_ml;
+};
+
+struct vpslot_fluid_converter {
+    // Liquid drained from the vehicle as feedstock
+    itype_id input;
+    // Liquid produced into a compatible tank on the vehicle
+    itype_id output;
+    // Optional waste liquid produced alongside the output
+    std::optional<itype_id> byproduct;
+    // Grid energy consumed per charge of output produced
+    units::energy energy_per_unit = 0_J;
+    // Maximum charges of output produced per hour
+    int max_rate = 0;
 };
 
 struct vpslot_toolkit {
@@ -304,6 +318,7 @@ class vpart_info
         std::optional<vpslot_wheel> wheel_info;
         std::optional<vpslot_rotor> rotor_info;
         std::optional<vpslot_terrain_transform> transform_terrain_info;
+        std::optional<vpslot_fluid_converter> fluid_converter_info;
         //Enchantments
         std::vector<enchantment_id> enchantments;
 
