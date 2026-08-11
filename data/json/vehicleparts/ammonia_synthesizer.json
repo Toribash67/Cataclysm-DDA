@@ -5,7 +5,6 @@
     "name": { "str": "ammonia synthesizer" },
     "looks_like": "autoclave",
     "categories": [ "utility" ],
-    "color": "light_gray",
     "broken_color": "dark_gray",
     "damage_modifier": 80,
     "durability": 250,
